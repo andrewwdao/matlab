@@ -60,7 +60,7 @@ signal = sensorsig(pos,Nsamp,angs,nPower);
 % 
 % The broadside angles corresponding to the two incident directions are:
 
-broadsideAngle = az2broadside(angs(1,:),angs(2,:))
+broadsideAngle = az2broadside(angs(1,:),angs(2,:));
 
 %%
 % We can see that the two broadside angles are the same as the azimuth
@@ -90,12 +90,12 @@ spatialspectrum.NumSignals = 2;
 % We now obtain the spatial spectrum and the DOAs. The estimated DOAs
 % show the correct values, which are 40&deg; and -20&deg;.
 
-[~,ang] = spatialspectrum(signal)
+[~,ang] = spatialspectrum(signal);
 
 
 %%
 % Plot the spatial spectrum of the beamscan output.
-
+figure;
 plotSpectrum(spatialspectrum);
 
 %% Improving Resolution Using MVDR and MUSIC Estimators
