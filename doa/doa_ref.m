@@ -3,8 +3,8 @@ clear; clc; close all;
 
 % Area size and positions
 area_size = 100;     % 100x100 meter area
-tx_pos = [45, 80; 80,80];  % Transmitter position (x, y) in meters
-rx_pos = [20, 20;];  % Receiver position (x, y) in meters
+tx_pos = [80,80; 75,63; 82,96;];  % Transmitter position (x, y) in meters
+rx_pos = [20, 20];  % Receiver position (x, y) in meters
 element_num = 64;     % Number of elements in the ULA
 % Signal and noise parameters
 Nsamp = 1000;
@@ -35,7 +35,21 @@ rs=rng(2007); % initialize the random number generator in MATLAB to a specific s
 pos = getElementPosition(Array)/lambda;  % Element positions
 signal = sensorsig(pos, Nsamp, true_aoa, db2pow(nPower_db)); % Simulate received signal at sensor array
 
-% MVDR Estimator
+% --- Conventional Beamforming
+bartlettspect = phased.BeamscanEstimator(...
+    'SensorArray',Array,...
+    'PropagationSpeed', c, 'OperatingFrequency',fc,'ScanAngles',-90:90,...
+    'DOAOutputPort', true, 'NumSignals', size(tx_pos, 1));
+% Estimate DoA using Conventional
+[yconv, est_aoa_conv] = bartlettspect(signal); % Get the spectrum data and the estimated AoA
+yconv_dB = 20*log10(yconv) - max(20*log10(yconv)); % Convert spectrum data to dB
+[max_pow_conv, max_idx_conv] = maxk(yconv_dB, length(est_aoa_conv)); % Get the selected maximum power and its index
+disp('---------------------------------- Estimated Barlett AoA:');
+disp(array2table(...
+    est_aoa_conv, ...% table data
+    'RowNames', cellstr(strcat('RX', num2str((1:size(rx_pos, 1))'))), ...
+    'VariableNames', cellstr(strcat('TX', num2str((1:size(tx_pos, 1))')))));
+% --- MVDR Estimator - Minimum Variance Distortion-less Response
 % The MVDR algorithm's improved resolution comes with a price.
 % The MVDR is more sensitive to sensor position errors.
 % In circumstances where sensor positions are inaccurate, MVDR could produce a worse spatial spectrum than beamscan.
@@ -53,7 +67,7 @@ disp(array2table(...
     est_aoa_mvdr, ...% table data
     'RowNames', cellstr(strcat('RX', num2str((1:size(rx_pos, 1))'))), ...
     'VariableNames', cellstr(strcat('TX', num2str((1:size(tx_pos, 1))')))));
-% MUSIC Estimator - Multiple Signal Classification
+% --- MUSIC Estimator - Multiple Signal Classification
 % MUSIC provides better spatial resolution than MVDR.
 % However, like MVDR, is sensitive to sensor position errors.
 % In addition, the number of sources must be known or accurately estimated.
@@ -74,7 +88,7 @@ disp(array2table(...
     'VariableNames', cellstr(strcat('TX', num2str((1:size(tx_pos, 1))')))));
 
 % --- Plotting
-figure('Name', 'MVDR Spatial Spectrum', 'WindowState', 'maximized'); clf;
+figure('Name', 'Spatial Spectrum', 'WindowState', 'maximized'); clf;
 % -- Map
 subplot(2,2,1); hold on;
 plot(tx_pos(:,1), tx_pos(:,2), 'ro', 'MarkerSize', 10, 'LineWidth', 2);
@@ -92,16 +106,16 @@ hold off;
 % axes('Position', [0.35 0.35 0.3 0.3]); % Positioning the radar plot on the map
 % -- Normal spectrum
 subplot(2,2,[3,4]);
-title('DoA Estimation using MVDR with ULA');
 % plotSpectrum(mvdrspatialspect);
 % Plot spectra in dB normalized to 0 dB at the peak
 plot(...
+    bartlettspect.ScanAngles, yconv_dB, ...
     mvdrspatialspect.ScanAngles, ymvdr_dB, ...
     musicspatialspect.ScanAngles, ymusic_dB, ...
     'LineWidth', 2);
-xlabel('Broadside Angle (degrees)');  % Default for ULA - xlabel('Elevation Angle (degrees)'); for URA
+xlabel('Angle (degrees)');  % Default for ULA - xlabel('Elevation Angle (degrees)'); for URA
 ylabel('Power (dB)');
-legend('MVDR', 'MUSIC', 'AutoUpdate', 'off');
+legend('Conventional', 'MVDR', 'MUSIC', 'AutoUpdate', 'off');
 grid on;
 title('Spatial Spectrum');
 % Add markers for the top spectrum peaks
@@ -121,7 +135,6 @@ hold off;
 % -- Normalized spectrum on a polar plot
 subplot(2,2,2);
 % scan_angles = mvdr_estimator.AzimuthScanAngles;  % Retrieve the scan angles
-ymvdr_dB = 20 * log10(ymvdr);  % Convert spectrum data to dB
 ymvdr_dB_normalized = ymvdr_dB - min(ymvdr_dB);  % Normalize the spectrum data to 0 dB at the peak
 % compress the spectrum data to fit the polar plot with a marker at the estimated DoA
 [max_pow, max_idx] = maxk(ymvdr_dB, length(est_aoa_mvdr));
