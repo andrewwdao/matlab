@@ -7,7 +7,7 @@ tx_pos = [80,80;];  % Transmitter position (x, y) in meters
 rx_pos = [20,20;];  % Receiver position (x, y) in meters
 element_num = 128;     % Number of elements in the ULA
 % Signal and noise parameters
-Nsamp = 1000;
+Nsamp = 10;
 nPower_db = 10; % White noise power (dB)
 % Constants
 c = physconst('LightSpeed');
