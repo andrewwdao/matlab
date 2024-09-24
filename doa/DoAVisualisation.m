@@ -1,3 +1,4 @@
+
 classdef DoAVisualisation < handle
     properties
         algo_type
@@ -61,8 +62,8 @@ classdef DoAVisualisation < handle
             hold off;
             ax = gca;
             ax.RTickLabel = '';
-            ax.ThetaLim = [0 360];
-            ax.ThetaTick = 0:15:360;
+            ax.ThetaLim = [min(obj.angle_array) max(obj.angle_array)];
+            ax.ThetaTick = min(obj.angle_array):15:max(obj.angle_array);
             ax.ThetaZeroLocation = 'right';  % 0 degrees at the right
             ax.ThetaDir = 'counterclockwise';  % Counterclockwise direction
             title('Spatial Spectrum (Polar)');

@@ -2,18 +2,13 @@
 clear; clc; close all;
 
 % Area size and positions
-area_size = 100;     % 100x100 meter area
-tx_pos = [80,80;];  % Transmitter position (x, y) in meters
-rx_pos = [20,20;];  % Receiver position (x, y) in meters
-element_num = 128;     % Number of elements in the ULA
+area_size = 100;    % 100x100 meter area
+tx_pos = [60,80;];  % Transmitter position (x, y) in meters
+rx_pos = [10,50;];  % Receiver position (x, y) in meters
+element_num = 4;  % Number of elements in the ULA
 % Signal and noise parameters
-Nsamp = 10;
+Nsamp = 1000;
 nPower_db = 10; % White noise power (dB)
-% Constants
-c = physconst('LightSpeed');
-fc = 2.4e9; % Operating frequency (Hz)
-lambda = c / fc; % Wavelength
-
 % True Angle of Arrival (AoA)
 true_aoa = zeros(size(rx_pos, 1), size(tx_pos, 1));
 for i = 1:size(rx_pos, 1)
@@ -29,8 +24,78 @@ disp(array2table(...
 
 
 
-% ============================ Generate signal received at Rx ============================
-rs=rng(2007); % initialize the random number generator in MATLAB to a specific seed value
+% ====================== Generate signal received at Rx =======================
+% Area size and positions
+% area_size = 100;    % 100x100 meter area
+% tx_pos = [60,80;];  % Transmitter position (x, y) in meters
+% rx_pos = [10,50;];  % Receiver position (x, y) in meters
+% element_num = 4;  % Number of elements in the ULA
+% Constants
+c = 299792458; % physconst('LightSpeed');
+fc = 2.4e9; % Operating frequency (Hz)
+lambda = c / fc; % Wavelength
+t = (0:1e-6:1e-3);  % Time vector for the signal
+N = element_num;  % Number of antenna elements in the ULA
+element_spacing = 0.5 * lambda;  % Element spacing (ULA)
+P_t = 1;                       % Transmit signal power
+% --- Calculate the Angle of Arrival (AoA)
+theta = atan2d(tx_pos(2) - rx_pos(2), tx_pos(1) - rx_pos(1));  % AoA in degrees
+rs=rng(2007); % initialize the random number generator to a specific seed value
+% --- Generate transmitted signal
+% Transmitted signal (simple sinusoidal signal)
+s_t = sqrt(P_t) * exp(1j * 2 * pi * fc * t);  % Complex sinusoid
+% --- Transmitted through a Friis free-space model
+% Calculate the Euclidean distance
+distance = sqrt((tx_pos(1) - rx_pos(1))^2 + (tx_pos(2) - rx_pos(2))^2);
+channel = ChannelModel(lambda, distance, 1);
+y_t = channel.FriisModel(s_t);  % Received signal at the receiver
+
+% --- MUSIC Algorithm
+% --- Calculate the covariance matrix
+R = y_t * y_t' / size(y_t, 2);
+% Perform eigenvalue decomposition
+[eigenvectors, eigenvalues] = eig(R);
+% Sort eigenvalues and eigenvectors
+[eigenvalues, idx] = sort(diag(eigenvalues), 'descend');
+eigenvectors = eigenvectors(:, idx);
+% Determine the noise subspace
+num_signals = 1; % Number of signals (assuming 1 for simplicity)
+noise_subspace = eigenvectors(:, num_signals+1:end);
+% Compute the MUSIC spectrum
+angles = -90:1:90; % Angle range for MUSIC spectrum
+music_spectrum = zeros(size(angles));
+
+for i = 1:length(angles)
+    steering_vector = exp(-1j * 2 * pi * element_spacing * (0:N-1)' * sind(angles(i)) / lambda);
+    music_spectrum(i) = 1 / (steering_vector' * (noise_subspace * noise_subspace') * steering_vector +eps(1)); % add a small positive constant to prevent division by zero. 9.44 in [1]
+end
+
+% Convert MUSIC spectrum to dB scale
+music_spectrum_dB = 10 * log10(abs(music_spectrum));
+
+% Plot the MUSIC spectrum
+figure;
+plot(angles, music_spectrum_dB);
+title('MUSIC Spectrum');
+xlabel('Angle (degrees)');
+ylabel('Spectrum (dB)');
+grid on;
+
+% Find the peaks in the MUSIC spectrum
+[~, peak_indices] = findpeaks(music_spectrum_dB);
+estimated_aoa = angles(peak_indices);
+
+% Display the estimated angles of arrival
+disp('Estimated Angles of Arrival (AoA):');
+disp(peak_indices);
+% --- Steering vector for the incoming signal
+steering_vec = exp(-1j * 2 * pi * distance * (0:N-1)' * sind(theta) / lambda);
+received_signal = y_t' * steering_vec';  % Received signal at the receiver
+
+
+
+
+
 % Define the Antenna Array Configuration
 Array = phased.ULA('NumElements', element_num, 'ElementSpacing', 0.5*lambda);  % wavelength spacing
 % POS = getElementPosition(H) returns the element positions of
@@ -65,18 +130,14 @@ pos = getElementPosition(Array)/lambda;  % Element positions
 %   R is derived from X.
 %   The input signals are assumed to be constant-modulus signals with random phases.
 [signal, ~, R] = sensorsig(pos, Nsamp, true_aoa, db2pow(nPower_db));
-
+noise = 0.1*(randn(size(signal))+1i*randn(size(signal)));
 % --- Conventional Beamforming
-spectrum = phased.MUSICEstimator(...
+estimator = phased.MUSICEstimator(...
     'SensorArray', Array,...
-    'PropagationSpeed', c, 'OperatingFrequency', fc, 'ScanAngles', -90:90,...
+    'PropagationSpeed', c, 'OperatingFrequency', fc, 'ScanAngles', -90:0.5:90,...
     'DOAOutputPort', true, 'NumSignalsSource', 'Property', 'NumSignals', size(tx_pos, 1));
-    % phased.BeamscanEstimator(...
-    % 'SensorArray',Array,...
-    % 'PropagationSpeed', c, 'OperatingFrequency',fc,'ScanAngles',-90:90,...
-    % 'DOAOutputPort', true, 'NumSignals', size(tx_pos, 1));
 % Estimate DoA using Conventional
-[ypow, est_aoa] = spectrum(signal); % Get the spectrum data and the estimated AoA
+[ypow, est_aoa] = estimator(signal+noise); % Get the spectrum data and the estimated AoA
 ypow_dB = 20*log10(ypow) - max(20*log10(ypow)); % Convert spectrum data to dB
 [max_pow, ~] = maxk(ypow_dB, length(est_aoa)); % Get the selected maximum power and its index
 disp('---------------------------------- Estimated Barlett AoA:');
@@ -85,61 +146,9 @@ disp(array2table(...
     'RowNames', cellstr(strcat('RX', num2str((1:size(rx_pos, 1))'))), ...
     'VariableNames', cellstr(strcat('TX', num2str((1:size(tx_pos, 1))')))));
 
-vis = DoAVisualisation("Conventional", tx_pos, rx_pos, area_size, spectrum.ScanAngles, ypow_dB, est_aoa);
-vis.plot();
-
 % % --- Plotting
-% figure('Name', 'Spatial Spectrum', 'WindowState', 'maximized'); clf;
-% % -- Map
-% subplot(2,2,1); hold on;
-% plot(tx_pos(:,1), tx_pos(:,2), 'ro', 'MarkerSize', 10, 'LineWidth', 2);
-% text(tx_pos(:,1) + 2, tx_pos(:,2), 'Tx', 'Color', 'red', 'FontSize', 12);
-% plot(rx_pos(:,1), rx_pos(:,2), 'bo', 'MarkerSize', 10, 'LineWidth', 2);
-% text(rx_pos(:,1) + 2, rx_pos(:,2), 'Rx', 'Color', 'blue', 'FontSize', 12);
-% xlim([0 area_size]);
-% ylim([0 area_size]);
-% xlabel('X Position (m)');
-% ylabel('Y Position (m)');
-% title('Map with Tx and Rx Positions');
-% legend('Tx Position', 'Rx Position');
-% grid on;
-% hold off;
-% % axes('Position', [0.35 0.35 0.3 0.3]); % Positioning the radar plot on the map
-% % -- Normal spectrum
-% subplot(2,2,[3,4]);
-% % Plot spectra in dB normalized to 0 dB at the peak
-% plot(spectrum.ScanAngles, ypow_dB, 'LineWidth', 2);
-% xlabel('Angle (degrees)');  % Default for ULA - xlabel('Elevation Angle (degrees)'); for URA
-% ylabel('Power (dB)');
-% legend('Reference', 'AutoUpdate', 'off');
-% grid on;
-% title('Conventional Beamforming Spatial Spectrum');
-% % Add markers for the top spectrum peaks
-% hold on;
-% for i = 1:length(est_aoa)
-%     plot(est_aoa(i), max_pow(i), 'bo', 'MarkerSize', 10, 'LineWidth', 2);
-%     text(est_aoa(i)-5, max_pow(i)+1, ...
-%         ['DoA:', num2str(est_aoa(i)), '°; P:', num2str(max_pow(i)), 'dB'], 'Color', 'blue', 'LineWidth', 2);
-% end
-% hold off;
-% % -- Normalized spectrum on a polar plot
-% subplot(2,2,2);
-% % scan_angles = mvdr_estimator.AzimuthScanAngles;  % Retrieve the scan angles
-% yconv_dB_normalized = ypow_dB - min(ypow_dB);  % Normalize the spectrum data to 0 dB at the peak
-% % compress the spectrum data to fit the polar plot with a marker at the estimated DoA
-% [max_pow, max_idx] = maxk(ypow_dB, length(est_aoa));
-% polarplot(deg2rad(spectrum.ScanAngles), yconv_dB_normalized, 'r-', 'LineWidth', 2); hold on;
-% for i = 1:length(est_aoa)
-%     polarplot(deg2rad(est_aoa(i)), yconv_dB_normalized(max_idx(i)), 'ro', 'MarkerSize', 10, 'LineWidth', 2);
-%     text(deg2rad(est_aoa(i)), yconv_dB_normalized(max_idx(i))+2, ...
-%         ['DoA:', num2str(est_aoa(i)), '°; P:', num2str(max_pow(i)), 'dB'], 'Color', 'red', 'LineWidth', 2);
-% end
-% hold off;
-% % --- Customize the polar plot
-% ax = gca;
-% ax.RTickLabel = '';
-% ax.ThetaLim = [0 360];
-% ax.ThetaTick = 0:15:360;
-% ax.ThetaZeroLocation = 'right';  % 0 degrees at the right
-% ax.ThetaDir = 'counterclockwise';  % Counterclockwise direction
-% title('Spatial Spectrum (Polar)');
+vis = DoAVisualisation(...
+    "MUSIC", tx_pos, rx_pos, area_size, ...
+    estimator.ScanAngles, ypow_dB, ...
+    est_aoa);
+vis.plot();
