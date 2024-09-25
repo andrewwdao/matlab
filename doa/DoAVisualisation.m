@@ -1,13 +1,13 @@
 
 classdef DoAVisualisation < handle
     properties
-        algo_type
-        tx_pos
-        rx_pos
-        area_size
-        angle_array
-        powdb_array
-        est_aoa
+        algo_type  % Algorithm type
+        tx_pos  % Transmitter position (x, y) in meters
+        rx_pos  % Receiver position (x, y) in meters
+        area_size  % Area size
+        angle_array % Angle array for visualisation  
+        powdb_array % Power array in dB for visualisation
+        est_aoa % Estimated Angle of Arrival (AoA)
     end
     
     methods
