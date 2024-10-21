@@ -8,11 +8,10 @@ classdef ArrayModel < handle
         element_spacing    % Distance between antenna elements (normalised to lambda units)
         element_pos % Element relative positions (normalised to 0 at the first element)
         lambda      % Wavelength (m)
-        sigma_n2    % Noise variance (white noise)
     end
     
     methods
-        function obj = ArrayModel(tx_pos, rx_pos, lambda, element_num, element_spacing, sigma_n2)
+        function obj = ArrayModel(tx_pos, rx_pos, lambda, element_num, element_spacing)
             % --- Constructor to initialize the properties
             obj.element_num = element_num;  % Number of elements in the ULA
             obj.element_spacing = element_spacing;  % Distance between antenna elements (normalised to lambda units))
@@ -27,9 +26,8 @@ classdef ArrayModel < handle
                 end
             end
             % obj.logger('True Angles of Arrival with Absolute Distance', sprintf("%.2f deg; %.2f m", obj.act_aoa, obj.act_distance));
-            obj.logger('True Angles of Arrival with Absolute Distance', obj.act_aoa);
+            % obj.logger('True Angles of Arrival with Absolute Distance', obj.act_aoa);
             obj.lambda = lambda;  % Wavelength (m)
-            obj.sigma_n2 = sigma_n2;  % Noise variance (white noise)
         end
         
         function logger(obj, purpose, angles)
