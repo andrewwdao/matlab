@@ -79,7 +79,7 @@ classdef ChannelModel < handle
             % --- steering vector to reflect the array characteristics
             % original steering vector: exp(-1j * 2 * pi * element_spacing * (0:N-1)' * sind(theta) / lambda)
             Alpha = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(act_aoa) / obj.lambda);
-            output = Alpha * input';
+            output = Alpha * input;
         end
     end
 end

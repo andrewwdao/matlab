@@ -6,17 +6,23 @@ classdef DoAEstimator < handle
         element_num % Number of elements in the ULA
         element_spacing % Distance between antenna elements (normalised to lambda units)
         sweeping_angle % Angle range for sweeping to find the AoA
+        steer_vect % Steering vector that simulate the effects of the array on the received signal
     end
 
     methods
         function obj = DoAEstimator(received_signal, tx_num, lambda, element_num, element_spacing, sweeping_angle)
             % --- Constructor to initialize the properties
+            % steer_vect: complex Nx1 (Number of elements)x1
             obj.received_signal = received_signal;  % Received signal at the sensor array
             obj.tx_num = tx_num;  % Number of transmitters
             obj.lambda = lambda;  % Wavelength (m)
             obj.element_num = element_num;  % Number of elements in the ULA
             obj.element_spacing = element_spacing;  % Distance between antenna elements (normalised to lambda units))
             obj.sweeping_angle = sweeping_angle;  % Angle range for sweeping to find the AoA
+            obj.steer_vect = zeros(element_num, length(obj.sweeping_angle));
+            for i = 1:length(obj.sweeping_angle)
+                obj.steer_vect(:, i) = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
+            end
         end
 
         function [est_aoa, spectrum_dB] = parse_output(obj, purpose, spectrum)
@@ -30,43 +36,53 @@ classdef DoAEstimator < handle
             % obj.logger(purpose, est_aoa);
         end
 
-        function [est_aoa, spectrum_dB] = ML_sync(obj)
+        function [est_aoa, spectrum_dB] = ML_sync(obj, s_t)
             % Assume received signal: synchoronous signal with noise
-            % y = steering_vector + noise;
+            % Model: y = steering_vector*s_t + noise;
+            % (know the transmitted symbols before channel and array effects)
+            % s_t: complex 1xT (1 TX)x(Number of samples)
+            % obj.received_signal: complex NxT (Number of elements)x(Number of samples)
+            % steering_vector: complex Nx1 (Number of elements)x1
             spectrum = zeros(size(obj.sweeping_angle));
             for i = 1:length(obj.sweeping_angle)
-                steering_vector = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
-                spectrum(i) = real(steering_vector' * obj.received_signal);
+                for t = 1:size(s_t,2) % consider each time instance separately
+                    spectrum(i) = spectrum(i)+ real(obj.received_signal(:,t)' * obj.steer_vect(:, i) * s_t(:,t));
+                end
             end
             % Parse the output to readable format
-            [est_aoa, spectrum_dB] = obj.parse_output('Simple Sync Maximum Likelihood', spectrum);
+            [est_aoa, spectrum_dB] = obj.parse_output('Sync ML', spectrum);
         end
-
-        function [est_aoa, spectrum_dB] = ML_async(obj)
+        
+        function [est_aoa, spectrum_dB] = ML_async(obj, s_t)
+            % Assume received signal: asynchoronous signal with noise
+            % Model: y = steering_vector*exp(j\theta) + noise;
+            % (know the transmitted symbols before channel and array effects)
+            % s_t: complex 1xT (1 TX)x(Number of samples)
+            % obj.received_signal: complex NxT (Number of elements)x(Number of samples)
+            % steering_vector: complex Nx1 (Number of elements)x1
             spectrum = zeros(size(obj.sweeping_angle));
             for i = 1:length(obj.sweeping_angle)
-                steering_vector = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
-                % Form MVDR denominator matrix from noise subspace eigenvectors
-                spectrum(i) = abs(steering_vector' * obj.received_signal);
+                for t = 1:size(s_t,2) % consider each time instance separately
+                    spectrum(i) = spectrum(i) + real(obj.received_signal(:,t)' * obj.steer_vect(:, i) * obj.steer_vect(:, i)' * obj.received_signal(:,t));
+                end
             end
             % Parse the output to readable format
-            [est_aoa, spectrum_dB] = obj.parse_output('Simple Sync Maximum Likelihood', spectrum);
+            [est_aoa, spectrum_dB] = obj.parse_output('ASync ML', spectrum);
         end
 
         function [est_aoa, spectrum_dB] = BF(obj)
-            % --- Convensional Beamforming Algorithm
-            % Similar to the ML estimator for the assumed asynchoronous received signal:
+            % --- Conventional Beamforming Algorithm
+            % Similar to the ML estimator for asynchoronous received signal:
             % y = steering_vector*exp(j\theta) + noise;
             % --- Calculate the covariance matrix
             R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
             spectrum = zeros(size(obj.sweeping_angle));
             for i = 1:length(obj.sweeping_angle)
-                steering_vector = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
                 % Form MVDR denominator matrix from noise subspace eigenvectors
-                spectrum(i) = steering_vector' * R * steering_vector;  %steering_vector' * inv(R) * steering_vector;
+                spectrum(i) = obj.steer_vect(:, i)' * R * obj.steer_vect(:, i);  %steering_vector' * inv(R) * steering_vector;
             end
             % Parse the output to readable format
-            [est_aoa, spectrum_dB] = obj.parse_output('Conventional Beamforming', spectrum);
+            [est_aoa, spectrum_dB] = obj.parse_output('BF', spectrum);
         end
         
         function [est_aoa, spectrum_dB] = MVDR(obj)
@@ -74,12 +90,13 @@ classdef DoAEstimator < handle
             % --- Calculate the covariance matrix
             R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
             % Add regularization to the covariance matrix (diagonal loading)
-            R = R + 1e-3 * eye(size(R));  % add a small positive constant to prevent division by zero. 9.44 in [1]
+            if rcond(R) < 1e-15  % if R is a (near)singular matrix (non invertible)
+                R = R + eye(size(R));
+            end
             spectrum = zeros(size(obj.sweeping_angle));
             for i = 1:length(obj.sweeping_angle)
-                steering_vector = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
                 % Form MVDR denominator matrix from noise subspace eigenvectors
-                denom = (steering_vector' / R) * steering_vector; % steering_vector' * inv(R) * steering_vector;
+                denom = (obj.steer_vect(:, i)' / R) * obj.steer_vect(:, i); % steering_vector' * inv(R) * steering_vector;
                 spectrum(i) = 1 ./ denom;
             end
             % Parse the output to readable format
@@ -94,17 +111,17 @@ classdef DoAEstimator < handle
             [eigenvectors, eigenvalues] = eig(R);
             % Sort eigenvalues and eigenvectors
             [~, idx] = sort(diag(eigenvalues), 'descend');
-            eigenvectors = eigenvectors(:, idx); % get the largest eigenvectors
+            eigenvectors = eigenvectors(:, idx); % short the largest eigenvectors to the largest eigenvalues first
             % Determine the noise subspace
             noise_subspace = eigenvectors(:, obj.tx_num+1:end);
             % Compute the MUSIC spectrum
             spectrum = zeros(size(obj.sweeping_angle));
             for i = 1:length(obj.sweeping_angle)
-                steering_vector = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
                 % Form MUSIC denominator matrix from noise subspace eigenvectors
                 % another implementation for the denominator:
                 %(steering_vector' * (noise_subspace * noise_subspace') * steering_vector +eps(1));
-                denom = sum(abs(noise_subspace' * steering_vector).^2, 1)+eps(1); % add a small positive constant to prevent division by zero. 9.44 in [1]
+                denom = sum(abs(noise_subspace' * obj.steer_vect(:, i)).^2, 1);
+                denom = denom+eps(1); % add a small positive constant to prevent division by zero. 9.44 in [1]
                 spectrum(i) = 1 ./ denom;
             end
             % Parse the output to readable format

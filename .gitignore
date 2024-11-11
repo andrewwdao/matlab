@@ -1,3 +1,13 @@
 .venv
 deprecated/
 *.asv
+
+
+experimental/
+Tian/
+results/
+__pycache__/
+
+*.asv
+*.fig
+*.vscode

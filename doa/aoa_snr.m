@@ -19,9 +19,8 @@ P_t = 1; % W - Transmit signal power
 %% ====================== Generate original signal received at Rx
 s_t = sqrt(P_t) .* exp(1j * 2 * pi * 1000);  % Generate complex sinusoid transmitted signal
 channel = ChannelModel(tx_pos, rx_pos, lambda, element_num, lambda/2);
-array = ArrayModel(tx_pos, rx_pos, lambda, element_num, lambda/2);
-y_los = channel.Direct(s_t);  % Received signal at the receiver
-y_ula = array.applyULA(y_los);  % Apply ULA characteristics to the received signal
+y_los = channel.LoS(s_t, 1);  % Received signal at the receiver
+y_ula = channel.applyULA(y_los);  % Apply ULA characteristics to the received signal
 %% ====================== Loop through each SNR value
 mse_values = zeros(length(SNR_db),2);
 for idx=1:length(SNR_db)
@@ -34,7 +33,7 @@ for idx=1:length(SNR_db)
         y_t = y_ula + noise;
         % Start the estimation
         estimator = DoAEstimator(y_t, size(tx_pos,1), lambda, element_num, element_spacing, sweeping_angle);
-        [est_aoa_sync, ~] = estimator.ML_sync();
+        [est_aoa_sync, ~] = estimator.ML_sync(s_t);
         square_err(itr,1) = (est_aoa_sync - TRUE_ANGLE).^2;
         [est_aoa_bf, ~] = estimator.BF();
         square_err(itr,2) = (est_aoa_bf - TRUE_ANGLE).^2;
@@ -45,5 +44,5 @@ end
 figure; hold on; grid on;
 plot(SNR_db, mse_values(:,1), 'r', 'LineWidth', 1, 'DisplayName', 'Sync ML');
 plot(SNR_db, mse_values(:,2), 'g', 'LineWidth', 2, 'DisplayName', 'Beamforming');
-title('Mean Square Error (MSE)'); legend("AutoUpdate","on");
+title('MSE vs SNR'); legend("AutoUpdate","on");
 xlabel('Signal to Noise Ratio (SNR)'); ylabel('MSE');
