@@ -6,6 +6,8 @@ classdef ChannelModel < handle
         element_spacing    % Distance between antenna elements (normalised to lambda units)
         element_pos % Element relative positions (normalised to 0 at the first element)
         lambda      % Wavelength (m)
+        act_aoa     % Actual Angle of Arrival
+        act_dist    % Actual Distance
     end
     
     methods
@@ -18,6 +20,7 @@ classdef ChannelModel < handle
             obj.element_num = element_num;  % Number of elements in the ULA
             obj.element_spacing = element_spacing;  % Distance between antenna elements (normalised to lambda units))
             obj.element_pos = 0:element_spacing:(element_num-1);  % Element relative positions (normalised to 0 at the first element)
+            [obj.act_aoa, obj.act_dist] = obj.calculate_true_AoA_and_dist();
         end
         
         function [act_aoa, act_dist] = calculate_true_AoA_and_dist(obj)
@@ -74,11 +77,9 @@ classdef ChannelModel < handle
             % input: complex 1xT (1 TXs)x(Number of samples)
             % output: complex NxT (Number of elements)x(Number of samples)
             % Normalised lambda to 1 for simplicity (i.e., setting fc=c=1)
-            % --- calculating the actual angle of arrival from Tx and Rx locations
-            [act_aoa, ~] = obj.calculate_true_AoA_and_dist();
             % --- steering vector to reflect the array characteristics
             % original steering vector: exp(-1j * 2 * pi * element_spacing * (0:N-1)' * sind(theta) / lambda)
-            Alpha = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(act_aoa) / obj.lambda);
+            Alpha = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.act_aoa) / obj.lambda);
             output = Alpha * input;
         end
     end
