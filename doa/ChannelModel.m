@@ -82,5 +82,28 @@ classdef ChannelModel < handle
             Alpha = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.act_aoa) / obj.lambda);
             output = Alpha * input;
         end
+
+        %% --- Performance Evaluation
+        function CRB = CRB_det_1d(obj, transmitted_signal, nPower)
+            % --- CRB for general 1D arrays based on the deterministic (conditional) model, in degree.
+            %
+            % Inputs:
+            %   transmitted_signal - Transmitted signal.
+            %   nPower - Noise power.
+            %Reference:
+            %   [1] P. Stoica and A. Nehorai, "Performance study of conditional and
+            %       unconditional direction-of-arrival estimation," IEEE Transactions
+            %       on Acoustics, Speech and Signal Processing, vol. 38, no. 10,
+            %       pp. 1783-1795, Oct. 1990.
+            snapshot_count = size(transmitted_signal, 2);
+            A = exp(-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.act_aoa) / obj.lambda);
+            D = A .* (-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * cosd(obj.act_aoa) / obj.lambda);
+            % --- Calculate the covariance matrix - sample correlation matrix
+            P_est = transmitted_signal * transmitted_signal' / snapshot_count; % y*y^H/N
+            [m, k] = size(A);
+            H = D'*(eye(m) - A/(A'*A)*A')*D;
+            CRB = real(H .* P_est.');
+            CRB = eye(k) / CRB * (nPower / snapshot_count / 2);
+        end
     end
 end

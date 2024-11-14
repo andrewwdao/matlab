@@ -20,10 +20,10 @@ classdef DoAEstimator < handle
             obj.element_num = element_num;  % Number of elements in the ULA
             obj.element_spacing = element_spacing;  % Distance between antenna elements (normalised to lambda units))
             obj.sweeping_angle = sweeping_angle;  % Angle range for sweeping to find the AoA
-            obj.steer_vect = zeros(element_num, length(obj.sweeping_angle));
             obj.act_aoa = act_aoa;
+            obj.steer_vect = zeros(element_num, length(obj.sweeping_angle));
             for i = 1:length(obj.sweeping_angle)
-                obj.steer_vect(:, i) = exp(-1j * 2 * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
+                obj.steer_vect(:, i) = exp(-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
             end
         end
 
