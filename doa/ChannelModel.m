@@ -84,26 +84,44 @@ classdef ChannelModel < handle
         end
 
         %% --- Performance Evaluation
-        function CRB = CRB_det_1d(obj, transmitted_signal, nPower)
+        function CRB = CRB_det_1d(obj, tx_sig, nPower)
             % --- CRB for general 1D arrays based on the deterministic (conditional) model, in degree.
             %
             % Inputs:
-            %   transmitted_signal - Transmitted signal.
+            %   tx_sig - Transmitted signal.
             %   nPower - Noise power.
             %Reference:
             %   [1] P. Stoica and A. Nehorai, "Performance study of conditional and
             %       unconditional direction-of-arrival estimation," IEEE Transactions
             %       on Acoustics, Speech and Signal Processing, vol. 38, no. 10,
             %       pp. 1783-1795, Oct. 1990.
-            snapshot_count = size(transmitted_signal, 2);
+            snapshot_count = size(tx_sig, 2);
             A = exp(-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.act_aoa) / obj.lambda);
             D = A .* (-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * cosd(obj.act_aoa) / obj.lambda);
             % --- Calculate the covariance matrix - sample correlation matrix
-            P_est = transmitted_signal * transmitted_signal' / snapshot_count; % y*y^H/N
+            P_est = tx_sig * tx_sig' / snapshot_count; % y*y^H/N
             [m, k] = size(A);
             H = D'*(eye(m) - A/(A'*A)*A')*D;
             CRB = real(H .* P_est.');
             CRB = eye(k) / CRB * (nPower / snapshot_count / 2);
+        end
+
+        function CRB = CRB_det_1d_simp(obj, tx_sig, nPower)
+            % --- CRB for a deterministic (conditional) model, in degree.
+            % with simpler assumptions for the signal model.
+            %
+            % Inputs:
+            %   tx_sig - Transmitted signal.
+            %   nPower - Noise power.
+            % There is no protection method yet
+            % Implementation:
+            % A = exp(-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.act_aoa) / obj.lambda);
+            % D = A .* (-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * cosd(obj.act_aoa) / obj.lambda);
+            % D2 = A.*(2j * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.act_aoa) / obj.lambda) + D .* (-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * cosd(obj.act_aoa) / obj.lambda); 
+            % % --- Calculate the covariance matrix - sample correlation matrix
+            % CRB = -nPower / (tx_sig * tx_sig') / real(A' * D2);
+            % Alternatively:
+            CRB = 3/2 * nPower * obj.lambda^2 / (tx_sig * tx_sig') / (obj.element_num-1) / obj.element_num / (2*obj.element_num-1) / (pi*obj.lambda/2*cosd(obj.act_aoa)).^2;
         end
     end
 end

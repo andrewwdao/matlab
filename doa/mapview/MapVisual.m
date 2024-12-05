@@ -1,5 +1,5 @@
 
-classdef DoAVisualisation < handle
+classdef MapVisual < handle
     properties
         algo_type  % Algorithm type
         tx_pos  % Transmitter position (x, y) in meters
@@ -11,7 +11,7 @@ classdef DoAVisualisation < handle
     end
     
     methods
-        function obj = DoAVisualisation(algo_type, tx_pos, rx_pos, area_size, angle_array, powdb_array, est_aoa)
+        function obj = MapVisual(algo_type, tx_pos, rx_pos, area_size, angle_array, powdb_array, est_aoa)
             obj.algo_type = algo_type;
             obj.tx_pos = tx_pos;
             obj.rx_pos = rx_pos;

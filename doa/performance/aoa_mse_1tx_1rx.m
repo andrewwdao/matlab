@@ -1,13 +1,13 @@
-% clear; clc; close all;
+clear; clc; close all;
 %% === User inputs
-ITERATION = 50; % Number of Monte Carlo iterations
-TIME_INST_NUM = 15; % Number of time instances
+ITERATION = 1; % Number of Monte Carlo iterations
+TIME_INST_NUM = 1; % Number of time instances
 SNR_dB = 10; % dB
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4;   % Number of elements in the ULA
 
-%% ==== Other configurations
-rs=rng(2007); % initialize the random number generator to a specific seed value
+%% === Other configurations
+% rs=rng(2007); % initialize the random number generator to a specific seed value
 c = 299792458; % physconst('LightSpeed');
 fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
@@ -20,6 +20,7 @@ for i = 1:length(true_AoA)
 end
 n_param = size(tx_pos, 1); % Number of positions to test
 progressbar('reset', n_param); % Reset progress bar
+progressbar('displaymode', 'append'); % Reset progress bar
 progressbar('minimalupdateinterval', 1); % Update progress bar every x seconds
 avg_amp_gain = 1; % Average gain of the channel
 P_t = ones(size(tx_pos));  % W - Transmit signal power
@@ -41,6 +42,7 @@ mse_values = zeros(n_param, num_methods);
 square_err = zeros(ITERATION, num_methods);
 % Preallocate CRB array
 CRB_values = zeros(size(true_AoA));
+CRB_Stoica_values = zeros(size(true_AoA));
 
 %% ==== Loop through each Tx position to test the accuracy from measuring the MSE
 for idx = 1:n_param
@@ -64,8 +66,10 @@ for idx = 1:n_param
     % Calculate noise parameters with the corresponding average energy and SNR
     nPower = avg_E/db2pow(SNR_dB);
     % Calculate CRB for the current position
-    CRB_values(idx) = channel.CRB_det_1d(s_t, nPower);
-    % Monte Carlo iterations
+    CRB_values(idx) = channel.CRB_det_1d_simp(s_t, nPower);
+    CRB_Stoica_values(idx) = channel.CRB_det_1d(s_t, nPower);
+    CRB_values(idx)/CRB_Stoica_values(idx)
+    %% === Monte Carlo iterations
     for itr = 1:ITERATION
         % Generate received signal
         y_los = channel.LoS(s_t, avg_amp_gain);
@@ -85,9 +89,10 @@ for idx = 1:n_param
     end
     mse_values(idx, :) = mean(square_err, 1); % MSE for current position
 end
-%% Plot the MSE
+%% === Plot the MSE vs AoA
 figure;
-semilogy(true_AoA, CRB_values, 'k--', 'LineWidth', 2, 'DisplayName', 'CRB');grid on; hold on; % Plot CRB
+semilogy(true_AoA, CRB_values, 'k--', 'LineWidth', 1.5, 'DisplayName', 'CRB');grid on; hold on; % Plot CRB
+semilogy(true_AoA, CRB_Stoica_values, 'b--', 'LineWidth', 1.5, 'DisplayName', 'CRB Stoica');grid on; hold on; % Plot CRB
 for i= 1:num_methods % Plot the rest of the estimation methods' MSE
     semilogy(true_AoA, mse_values(:,i), 'LineWidth', 1, 'DisplayName', strrep(doa_est_methods(i).name, '_', ' '));
 end
