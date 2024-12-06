@@ -20,15 +20,26 @@ classdef MapVisual < handle
             obj.powdb_array = powdb_array;
             obj.est_aoa = est_aoa;
         end
-        function plotMap(obj)
-            figure('Name', 'Spatial Spectrum', 'WindowState', 'maximized'); clf;
-            subplot(2,2,1); hold on;
-            plot(obj.tx_pos(:,1), obj.tx_pos(:,2), 'ro', 'MarkerSize', 10, 'LineWidth', 2);
-            text(obj.tx_pos(:,1) + 2, obj.tx_pos(:,2), 'Tx', 'Color', 'red', 'FontSize', 12);
-            plot(obj.rx_pos(:,1), obj.rx_pos(:,2), 'bo', 'MarkerSize', 10, 'LineWidth', 2);
-            text(obj.rx_pos(:,1) + 2, obj.rx_pos(:,2), 'Rx', 'Color', 'blue', 'FontSize', 12);
-            xlim([0 obj.area_size]); ylim([0 obj.area_size]);
+
+        function plotMapOnly(~, area_size, tx_pos, rx_pos, abs_ray, intersection)
+            % --- only plotting the intersection if there are 5 input arguments
+            if nargin == 6
+                plot(intersection.x, intersection.y, 'ko', 'MarkerSize', 8, 'LineWidth', 2); hold on;
+            end
+
+            % --- Plot the Tx and Rx positions
+            plot(tx_pos(:,1), tx_pos(:,2), 'ro', 'MarkerSize', 10, 'LineWidth', 2); hold on;
+            text(tx_pos(:,1) + 2, tx_pos(:,2), 'Tx', 'Color', 'red', 'FontSize', 12); hold on;
+            plot(rx_pos(:,1), rx_pos(:,2), 'bo', 'MarkerSize', 10, 'LineWidth', 2); hold on;
+            text(rx_pos(:,1) + 2, rx_pos(:,2), 'Rx', 'Color', 'blue', 'FontSize', 12); hold on;
+            
+            % --- Plot the rays connecting the Tx and Rx
+            for i = 1:length(abs_ray)
+                fplot(@(x) abs_ray{i}.slope*x + abs_ray{i}.shift, abs_ray{i}.lim, 'k'); hold on;
+            end
+            % Other format settings
             xlabel('X Position (m)'); ylabel('Y Position (m)');
+            xlim([0 area_size]); ylim([0 area_size]);
             title('Map Visualisation'); grid on; hold off;
         end
         function addMarkers(obj)
@@ -39,7 +50,25 @@ classdef MapVisual < handle
             end
         end
         function plotNormalSpectrum(obj)
-            subplot(2,2,[3,4]);
+            % Plots the normal spectrum of the spatial data.
+            % This method plots the spatial spectrum using the angle and power data
+            % stored in the object. It creates a subplot in the 2nd row spanning the
+            % 3rd and 4th columns, plots the angle vs. power data, adds markers, and
+            % labels the axes. It also adds a legend and a title to the plot, and
+            % enables the grid.
+            %
+            % Inputs:
+            %    obj - The instance of the class containing the angle and power data.
+            %
+            % Outputs:
+            %    None
+            %
+            % Example:
+            %    obj.plotNormalSpectrum();
+            %
+            % Other m-files required: None
+            % Subfunctions: addMarkers
+            % MAT-files required: None
             plot(obj.angle_array, obj.powdb_array, 'LineWidth', 2); hold on;
             obj.addMarkers();
             xlabel('Angle (degrees)');
@@ -54,8 +83,25 @@ classdef MapVisual < handle
                 text(deg2rad(obj.est_aoa(i)), powdb_array_normalized(est_idx(i))*1.15, ['DoA:', num2str(obj.est_aoa(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
             end
         end
+        
         function plotPolarSpectrum(obj)
-            subplot(2,2,2);
+            % Plots the spatial spectrum in polar coordinates.
+            % This function plots the spatial spectrum data stored in the object in polar coordinates.
+            % It normalizes the power spectrum data, plots it using polarplot, and adds markers.
+            % The plot is customized with specific angular limits, tick marks, and direction settings.
+            %
+            % Inputs:
+            %    obj - The object containing the spectrum data and angle array.
+            %
+            % Outputs:
+            %    None
+            %
+            % Example:
+            %    obj.plotPolarSpectrum();
+            %
+            % Other m-files required: None
+            % Subfunctions: addPolarMarkers
+            % MAT-files required: None
             powdb_array_normalized = obj.powdb_array - min(obj.powdb_array); % Normalize the spectrum data
             polarplot(deg2rad(obj.angle_array), powdb_array_normalized, '-', 'LineWidth', 2); hold on;
             obj.addPolarMarkers(powdb_array_normalized);
@@ -68,9 +114,13 @@ classdef MapVisual < handle
             ax.ThetaDir = 'counterclockwise';  % Counterclockwise direction
             title('Spatial Spectrum (Polar)');
         end
-        function plot(obj)
-            obj.plotMap();hold on;
+        function plotSingle(obj, abs_ray)
+            figure('Name', 'Map Visualisation with detailed spectrum', 'WindowState', 'maximized'); clf; hold on;
+            subplot(2,2,1);
+            obj.plotMapOnly(obj.area_size, obj.tx_pos, obj.rx_pos, abs_ray);hold on;
+            subplot(2,2,[3,4]);
             obj.plotNormalSpectrum(); hold on;
+            subplot(2,2,2);
             obj.plotPolarSpectrum(); hold off;
         end
     end

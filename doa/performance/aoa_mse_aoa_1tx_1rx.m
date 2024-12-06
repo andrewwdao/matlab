@@ -68,7 +68,7 @@ for idx = 1:n_param
     % Calculate CRB for the current position
     CRB_values(idx) = channel.CRB_det_1d_simp(s_t, nPower);
     CRB_Stoica_values(idx) = channel.CRB_det_1d(s_t, nPower);
-    CRB_values(idx)/CRB_Stoica_values(idx)
+    % CRB_values(idx)/CRB_Stoica_values(idx)
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         % Generate received signal
@@ -91,7 +91,7 @@ for idx = 1:n_param
 end
 %% === Plot the MSE vs AoA
 figure;
-semilogy(true_AoA, CRB_values, 'k--', 'LineWidth', 1.5, 'DisplayName', 'CRB');grid on; hold on; % Plot CRB
+semilogy(true_AoA, CRB_values, 'r--', 'LineWidth', 1.5, 'DisplayName', 'CRB');grid on; hold on; % Plot CRB
 semilogy(true_AoA, CRB_Stoica_values, 'b--', 'LineWidth', 1.5, 'DisplayName', 'CRB Stoica');grid on; hold on; % Plot CRB
 for i= 1:num_methods % Plot the rest of the estimation methods' MSE
     semilogy(true_AoA, mse_values(:,i), 'LineWidth', 1, 'DisplayName', strrep(doa_est_methods(i).name, '_', ' '));
