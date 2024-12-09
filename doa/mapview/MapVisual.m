@@ -21,22 +21,32 @@ classdef MapVisual < handle
             obj.est_aoa = est_aoa;
         end
 
-        function plotMapOnly(~, area_size, tx_pos, rx_pos, abs_ray, intersection)
-            % --- only plotting the intersection if there are 5 input arguments
-            if nargin == 6
-                plot(intersection.x, intersection.y, 'ko', 'MarkerSize', 8, 'LineWidth', 2); hold on;
-            end
+        function plotMapOnly(~, area_size, tx_pos, rx_pos, abs_rays, doa_intersect, SHOW_LIMITS)
 
             % --- Plot the Tx and Rx positions
-            plot(tx_pos(:,1), tx_pos(:,2), 'ro', 'MarkerSize', 10, 'LineWidth', 2); hold on;
-            text(tx_pos(:,1) + 2, tx_pos(:,2), 'Tx', 'Color', 'red', 'FontSize', 12); hold on;
-            plot(rx_pos(:,1), rx_pos(:,2), 'bo', 'MarkerSize', 10, 'LineWidth', 2); hold on;
-            text(rx_pos(:,1) + 2, rx_pos(:,2), 'Rx', 'Color', 'blue', 'FontSize', 12); hold on;
+            plot(tx_pos(:,1), tx_pos(:,2), 'ro', 'MarkerSize', 10, 'LineWidth', 3); hold on;
+            text(tx_pos(:,1)+1.5, tx_pos(:,2)-2.5, 'Tx', 'Color', 'red', 'FontSize', 12); hold on;
+            plot(rx_pos(:,1), rx_pos(:,2), 'bo', 'MarkerSize', 10, 'LineWidth', 3); hold on;
+            text(rx_pos(:,1)+1.5, rx_pos(:,2)-2.5, 'Rx', 'Color', 'blue', 'FontSize', 12); hold on;
             
-            % --- Plot the rays connecting the Tx and Rx
-            for i = 1:length(abs_ray)
-                fplot(@(x) abs_ray{i}.slope*x + abs_ray{i}.shift, abs_ray{i}.lim, 'k'); hold on;
+            % --- Plot the rays connecting the Tx and Rx, and the navigation rays
+            for i = 1:length(abs_rays)
+                fplot(@(x) abs_rays{i}.doa_slope*x + abs_rays{i}.doa_shift, abs_rays{i}.lim, 'r', 'LineWidth', 2); hold on;
             end
+            % --- only plotting the DoA intersection if there are 5 input arguments
+            if nargin >= 6
+                plot(doa_intersect.x, doa_intersect.y, 'ko', 'MarkerSize', 8, 'LineWidth', 2); hold on;
+                % --- Plot the navigation rays
+                if SHOW_LIMITS
+                    for i = 1:length(abs_rays)
+                        fplot(@(x) abs_rays{i}.centre_slope*x + abs_rays{i}.centre_shift, abs_rays{i}.lim, 'k--', 'LineWidth', 0.25); hold on;
+                        fplot(@(x) abs_rays{i}.cw_slope*x + abs_rays{i}.cw_shift, [abs_rays{i}.lim], 'k--', 'LineWidth', 0.25); hold on;
+                        fplot(@(x) abs_rays{i}.ccw_slope*x + abs_rays{i}.ccw_shift, [abs_rays{i}.lim], 'k--', 'LineWidth', 0.25); hold on;
+                    end
+                end
+            
+            end
+
             % Other format settings
             xlabel('X Position (m)'); ylabel('Y Position (m)');
             xlim([0 area_size]); ylim([0 area_size]);
@@ -114,7 +124,7 @@ classdef MapVisual < handle
             ax.ThetaDir = 'counterclockwise';  % Counterclockwise direction
             title('Spatial Spectrum (Polar)');
         end
-        function plotSingle(obj, abs_ray)
+        function plotSingle(obj, abs_ray, SHOW_LIMITS)
             figure('Name', 'Map Visualisation with detailed spectrum', 'WindowState', 'maximized'); clf; hold on;
             subplot(2,2,1);
             obj.plotMapOnly(obj.area_size, obj.tx_pos, obj.rx_pos, abs_ray);hold on;

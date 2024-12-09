@@ -5,51 +5,86 @@ classdef PosEstimator2D < handle
         function obj = PosEstimator2D()
         end
 
-        function abs_ray = calAbsRay(~, rx_abs_pos, tx_abs_pos, rx_abs_rot, rel_angle)
-            % Calculate the absolute ray parameters (slope and shift)
+        function ray_plot_lim = calRayPlotLim(~, pos_abs_rx, pos_abs_tx, slope)
+            % Calculate the limits of the ray plot based on the quadrant
+            % in which the Rx and Tx are located.
+            % 
+            % Inputs:
+            %    pos_abs_rx - A 1x2 vector representing the absolute position of the Rx in the 2D plane [x, y].
+            %    pos_abs_tx - A 1x2 vector representing the absolute position of the Tx in the 2D plane [x, y].
+            %    slope      - A scalar representing the slope of the line connecting the Tx and Rx.
+            % 
+            % Outputs:
+            %    ray_plot_lim - A 1x2 vector representing the limits of the ray plot in the 2D plane.
+            % 
+            % Example:
+            %    pos_abs_rx = [100, 200];
+            %    pos_abs_tx = [300, 400];
+            %    slope = 0.5;
+            %    ray_plot_lim = calRayPlotLim(pos_abs_rx, pos_abs_tx, slope);
+            % 
+            % Other m-files required: None
+            % Subfunctions: None
+            % MAT-files required: None
+            if (pos_abs_rx(1) < pos_abs_tx(1) && pos_abs_rx(2) < pos_abs_tx(2)) || (pos_abs_rx(1) > pos_abs_tx(1) && pos_abs_rx(2) < pos_abs_tx(2))
+                lim_range = [0, 10000]; % Third quadrant or first quadrant
+            else
+                lim_range = [-10000, 0]; % Second quadrant or fourth quadrant
+            end
+            ray_plot_lim = sort(slope * lim_range + pos_abs_rx(1), "ascend"); % Absolute ray limit from a relative x limit from 0 to 100
+        end
+
+        function abs_ray = calAbsRays(obj, pos_abs_rx, pos_abs_tx, rot_abs_rx, aoa_rel, rot_lim)
+            % Calculate the absolute ray parameters (slope and doa_shift)
             % for a line connecting the Tx and Rx in the 2D plane.
             %
-            % This is an absolute slope and shift added to
-            % a relative angle of arrival for an RX at the origin (0,0) with no shift.
+            % This is an absolute slope and doa_shift added to
+            % a relative angle of arrival for an RX at the origin (0,0) with no doa_shift.
             % 
             % The function also determines the limits of the ray based on the quadrant
             % in which the Rx and Tx are located.
             %
             % Inputs:
-            %    rx_abs_pos - A 1x2 vector representing the absolute position of the Rx in the 2D plane [x, y].
-            %    tx_abs_pos - A 1x2 vector representing the absolute position of the Tx in the 2D plane [x, y].
-            %    rx_abs_rot - A scalar representing the absolute rotation of the Rx in degrees.
-            %    rel_angle  - A scalar representing the relative angle of arrival from TX to RX in degrees
+            %    pos_abs_rx - A 1x2 vector representing the absolute position of the Rx in the 2D plane [x, y].
+            %    pos_abs_tx - A 1x2 vector representing the absolute position of the Tx in the 2D plane [x, y].
+            %    rot_abs_rx - A scalar representing the absolute rotation of the Rx in degrees.
+            %    aoa_rel - A scalar representing the relative angle of arrival from TX to RX in degrees
             %                 that is output from the DoA Algorithms.
+            %    rot_lim (optional) - A scalar representing the limit of the rotation in degrees.
             %
             % Outputs:
             %    abs_ray    - A structure containing the following fields:
-            %                 slope - The absolute slope of the line connecting the Tx and Rx.
-            %                 shift - The absolute shift of the line connecting the Tx and Rx.
-            %                 lim   - A 1x2 vector representing the limits of the ray in the 2D plane.
+            %                 centre_slope - The slope of the line of the absolute rotation of the Rx. to the x-axis.
+            %                 cw_slope     - The slope of the line of the clock-wise absolute rotation of the Rx to the x-axis.
+            %                 ccw_slope    - The slope of the line of the counter-clock-wise absolute rotation of the Rx to the x-axis.
+            %                 doa_slope    - The slope of the line of the absolute angle of arrival of the Rx to the Tx.
+            %                 doa_shift - The absolute doa_shift of the lines that go through RX.
+            %                 lim   - A 1x2 vector representing the limits of the ray in the 2D plane that is used for plotting.
             %
             % Example:
-            %    rx_abs_pos = [100, 200];
-            %    tx_abs_pos = [300, 400];
-            %    rx_abs_rot = 45;
-            %    rel_angle = 30;
-            %    abs_ray = calAbsRay([], rx_abs_pos, tx_abs_pos, rx_abs_rot, rel_angle);
+            %    pos_abs_rx = [100, 200];
+            %    pos_abs_tx = [300, 400];
+            %    rot_abs_rx = 45;
+            %    aoa_rel = 30;
+            %    abs_ray = calAbsRays([], pos_abs_rx, pos_abs_tx, rot_abs_rx, aoa_rel);
             %
             % Other m-files required: None
             % Subfunctions: None
             % MAT-files required: None
-            abs_ray.slope = tand(rel_angle + rx_abs_rot);
-            abs_ray.shift = rx_abs_pos(2) - abs_ray.slope * rx_abs_pos(1);
-            % abs_ray.lim = sort(abs_ray.slope * [0, 1000] + rx_abs_pos(1), 'ascend'); % Absolute ray limit from a relative x limit from 0 to 100
-            if (rx_abs_pos(1) < tx_abs_pos(1) && rx_abs_pos(2) < tx_abs_pos(2)) || (rx_abs_pos(1) > tx_abs_pos(1) && rx_abs_pos(2) < tx_abs_pos(2))
-                lim_range = [0, 1000]; % Third quadrant or first quadrant
-            else
-                lim_range = [-1000, 0]; % Second quadrant or fourth quadrant
+            abs_ray.doa_slope = tand(rot_abs_rx + aoa_rel);
+            abs_ray.doa_shift = pos_abs_rx(2) - abs_ray.doa_slope * pos_abs_rx(1);
+            if nargin == 6
+                abs_ray.centre_slope = tand(rot_abs_rx);
+                abs_ray.centre_shift = pos_abs_rx(2) - abs_ray.centre_slope * pos_abs_rx(1);
+                abs_ray.cw_slope = tand(rot_abs_rx - rot_lim);
+                abs_ray.cw_shift = pos_abs_rx(2) - abs_ray.cw_slope * pos_abs_rx(1);
+                abs_ray.ccw_slope = tand(rot_abs_rx + rot_lim);
+                abs_ray.ccw_shift = pos_abs_rx(2) - abs_ray.ccw_slope * pos_abs_rx(1);
+                abs_ray.lim = obj.calRayPlotLim(pos_abs_rx, pos_abs_tx, abs_ray.doa_slope);
             end
-            abs_ray.lim = sort(abs_ray.slope * lim_range + rx_abs_pos(1), "ascend"); % Absolute ray limit from a relative x limit from 0 to 100
         end
 
-        function result = calIntersection(~, abs_ray1, abs_ray2)
+        function result = calDoAIntersect(~, abs_ray1, abs_ray2)
             % Calculate the intersection point of two lines in the 2D plane.
             % 
             % Inputs:
@@ -62,8 +97,8 @@ classdef PosEstimator2D < handle
             % Other m-files required: None
             % Subfunctions: None
             % MAT-files required: None
-            result.x = (abs_ray2.shift - abs_ray1.shift) / (abs_ray1.slope - abs_ray2.slope);
-            result.y = abs_ray1.slope * result.x + abs_ray1.shift;
+            result.x = (abs_ray2.doa_shift - abs_ray1.doa_shift) / (abs_ray1.doa_slope - abs_ray2.doa_slope);
+            result.y = abs_ray1.doa_slope * result.x + abs_ray1.doa_shift;
         end
     end
 end

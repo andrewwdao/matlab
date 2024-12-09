@@ -1,12 +1,13 @@
 clear; clc; close all;
 %% === User inputs
-TRUE_ANGLE = 30; % True Angle of Arrival
-TIME_INST_NUM = 1000; % Number of time instances
-RESOLUTION = 0.1; % Angle resolution in degree
 SNR_dB = 100; %dB
+SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
+ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
+TIME_INST_NUM = 1000; % Number of time instances
+TRUE_ANGLE = 30; % True Angle of Arrival
+RESOLUTION = 0.1; % Angle resolution in degree
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4; % Number of elements in the ULA
-
 %% === Other configurations
 % rs=rng(2007); % initialize the random number generator to a specific seed value
 c = 299792458; % physconst('LightSpeed');
@@ -53,7 +54,7 @@ result = estimator.ML_sync(s_t);
 % result = estimator.MUSIC();
 coor_estimator = PosEstimator2D();
 abs_ray = cell(1, 1);
-abs_ray{1} = coor_estimator.calAbsRay(rx_pos, tx_pos, 0, result.est_aoa);
+abs_ray{1} = coor_estimator.calAbsRays(rx_pos, tx_pos, 0, result.est_aoa, ABS_ANGLE_LIM);
 
 %% === Plotting
 % figure; hold on; grid on;
@@ -64,5 +65,5 @@ vis_sync = MapVisual(...
     "ML Sync", tx_pos, rx_pos, area_size, ...
     sweeping_angle, result.spectrum_dB, ...
         result.est_aoa);
-vis_sync.plotSingle(abs_ray);
+vis_sync.plotSingle(abs_ray, SHOW_LIMITS);
 
