@@ -1,7 +1,7 @@
 clear; clc; close all;
 %% === User inputs
-SNR_dB = 100; %dB
-SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
+ITERATION = 10000; % Number of Monte Carlo iterations
+SNR_dB = -30; %dB
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
 TIME_INST_NUM = 150; % Number of time instances
 TRUE_ANGLE = 30; % True Angle of Arrival
@@ -13,9 +13,8 @@ ELEMENT_NUM = 4; % Number of elements in the ULA
 c = 299792458; % physconst('LightSpeed');
 fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
-area_size = 100;   % 100x100 meter area
-pos_tx = [0+40*cosd(TRUE_ANGLE), 50+40*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
 pos_rx = [0, 50;]; % Receiver position (x, y) in meters
+pos_tx = [pos_rx(1)+40*cosd(TRUE_ANGLE), pos_rx(2)+40*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
 
 avg_amp_gain = 1; % Average gain of the channel
 P_t = 1;  % W - Transmit signal power1000Hz
@@ -39,31 +38,36 @@ else
 end
 % Calculate noise parameters with the corresponding average energy and SNR
 nPower = avg_E/db2pow(SNR_dB);
-% Initialize channel model
-channel = ChannelModel(pos_tx, pos_rx, lambda, ELEMENT_NUM, lambda/2);
-y_los = channel.LoS(s_t, avg_amp_gain);  % Received signal at the receiver
-y_ula = channel.applyULA(y_los);  % Apply ULA characteristics to the received signal
-% Calculate the energy of the whole signal transmitted to correct the noise power
-y_awgn = channel.AWGN(y_ula, nPower);
+progressbar('reset', ITERATION); % Reset progress bar
+progressbar('displaymode', 'append'); % Reset progress bar
+progressbar('minimalupdateinterval', 1); % Update progress bar every x seconds
+est_aoas = zeros(ITERATION, 1);
+parfor itr=1:ITERATION
+    progressbar('advance'); % Update progress bar
+    % Initialize channel model
+    channel = ChannelModel(pos_tx, pos_rx, lambda, ELEMENT_NUM, lambda/2);
+    y_los = channel.LoS(s_t, avg_amp_gain);
+    y_ula = channel.applyULA(y_los);
+    y_awgn = channel.AWGN(y_ula, nPower);
 
-%% === DoA Estimation Algorithm
-estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, TRUE_ANGLE);
-result = estimator_angle.ML_sync(s_t);
-% result = estimator_angle.BF();
-% result = estimator_angle.MVDR();
-% result = estimator_angle.MUSIC();
-estimator_coor = PosEstimator2D();
-rays_abs = cell(1, 1);
-rays_abs{1} = estimator_coor.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_ANGLE_LIM);
+    %% === DoA Estimation Algorithm
+    estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, TRUE_ANGLE);
+    est_aoas(itr) = estimator_angle.ML_sync(s_t).aoa_est;
+    % result = estimator_angle.BF();
+    % result = estimator_angle.MVDR();
+    % result = estimator_angle.MUSIC();
+end
 
-%% === Plotting
-% figure; hold on; grid on;
-% plot(result_sync.spectrum_dB, 'LineWidth', 1, 'DisplayName', "Sync");
-% plot(result_bf.spectrum_dB, 'LineWidth', 1, 'DisplayName', "BF");
-% title("Spectrum"); legend("AutoUpdate","on");
-vis_sync = MapVisual(...
-    "ML Sync", pos_tx, pos_rx, area_size, ...
-    sweeping_angle, result.spectrum_dB, ...
-        result.aoa_est);
-vis_sync.plotSingle(rays_abs, SHOW_LIMITS);
+%% === Calculate statistics
+mean_est_aoa = mean(est_aoas);
+std_est_aoa = std(est_aoas);
 
+%% === Plotting the Empirical PDF of Estimated Angle
+figure; hold on; grid on;
+histogram(est_aoas, 'Normalization', 'pdf');
+xlabel('Estimated Angle (degrees)');
+ylabel('Probability Density');
+title(sprintf('Empirical PDF of AoA for %d iterations\nMean: %.2f°, Std: %.2f°', ITERATION, mean_est_aoa, std_est_aoa));
+xlim([20 40]);
+% Add vertical line for true angle
+xline(TRUE_ANGLE, 'r--', 'True Angle', 'LineWidth', 1.5, 'LabelOrientation', 'horizontal');

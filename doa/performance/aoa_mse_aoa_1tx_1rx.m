@@ -1,7 +1,7 @@
 clear; clc; close all;
 %% === User inputs
 ITERATION = 1000; % Number of Monte Carlo iterations
-TIME_INST_NUM = 1500; % Number of time instances
+TIME_INST_NUM = 150; % Number of time instances
 SNR_dB = 0; % dB
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4;   % Number of elements in the ULA

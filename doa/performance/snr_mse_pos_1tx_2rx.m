@@ -82,8 +82,8 @@ for snr_idx=1:n_param
                 % Initialize channel model
                 channel = ChannelModelAoA(aoa_true(rx_idx), lambda, ELEMENT_NUM, element_spacing);
                 %% === Generate original signal received at Rx
-                y_los = channel.LoS(s_t, avg_amp_gain);  % Received signal at the receiver
-                y_ula = channel.applyULA(y_los);  % Apply ULA characteristics to the received signal
+                y_los = channel.LoS(s_t, avg_amp_gain);
+                y_ula = channel.applyULA(y_los);
                 y_awgn = channel.AWGN(y_ula, nPower);
 
                 estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ...
