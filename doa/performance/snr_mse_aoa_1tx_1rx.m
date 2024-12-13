@@ -71,7 +71,7 @@ for idx=1:n_param
         y_awgn = channel.AWGN(y_ula, nPower);
         % Create local estimator for this iteration
         estimator = DoAEstimator(y_awgn, tx_num, lambda, ...
-            ELEMENT_NUM, element_spacing, sweeping_angle, channel.act_aoa);
+            ELEMENT_NUM, element_spacing, sweeping_angle, channel.aoa_act);
         for m = 1:num_methods
             if doa_est_methods(m).transmitted_signal_required
                 result = estimator.(doa_est_methods(m).name)(s_t);

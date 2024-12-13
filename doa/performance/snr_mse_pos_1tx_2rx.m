@@ -89,9 +89,9 @@ for snr_idx=1:n_param
                 estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ...
                     ELEMENT_NUM, element_spacing, sweeping_angle, aoa_true(rx_idx));
                 if doa_est_methods(method_idx).transmitted_signal_required
-                    aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)(s_t).est_aoa;
+                    aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)(s_t).aoa_est;
                 else
-                    aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)().est_aoa;
+                    aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)().aoa_est;
                 end
                 rays_abs{rx_idx, method_idx} = estimator_coor.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, method_idx));
             end

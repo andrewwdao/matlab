@@ -7,18 +7,18 @@ classdef MapVisual < handle
         area_size  % Area size
         angle_array % Angle array for visualisation  
         powdb_array % Power array in dB for visualisation
-        est_aoa % Estimated Angle of Arrival (AoA)
+        aoa_est % Estimated Angle of Arrival (AoA)
     end
     
     methods
-        function obj = MapVisual(algo_type, tx_pos, rx_pos, area_size, angle_array, powdb_array, est_aoa)
+        function obj = MapVisual(algo_type, tx_pos, rx_pos, area_size, angle_array, powdb_array, aoa_est)
             obj.algo_type = algo_type;
             obj.tx_pos = tx_pos;
             obj.rx_pos = rx_pos;
             obj.area_size = area_size;
             obj.angle_array = angle_array;
             obj.powdb_array = powdb_array;
-            obj.est_aoa = est_aoa;
+            obj.aoa_est = aoa_est;
         end
 
         function plotMapOnly(~, area_size, tx_pos, rx_pos, abs_rays, doa_intersect, SHOW_LIMITS)
@@ -53,10 +53,10 @@ classdef MapVisual < handle
             title('Map Visualisation'); grid on; hold off;
         end
         function addMarkers(obj)
-            [est_pow, ~] = maxk(obj.powdb_array, length(obj.est_aoa)); % Get the selected maximum pow_array_db 
-            for i = 1:length(obj.est_aoa)
-                plot(obj.est_aoa(i), est_pow(i), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
-                text(obj.est_aoa(i)-5, (est_pow(i)+0.5).*1.15, ['DoA:', num2str(obj.est_aoa(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
+            [est_pow, ~] = maxk(obj.powdb_array, length(obj.aoa_est)); % Get the selected maximum pow_array_db 
+            for i = 1:length(obj.aoa_est)
+                plot(obj.aoa_est(i), est_pow(i), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
+                text(obj.aoa_est(i)-5, (est_pow(i)+0.5).*1.15, ['DoA:', num2str(obj.aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
             end
         end
         function plotNormalSpectrum(obj)
@@ -87,10 +87,10 @@ classdef MapVisual < handle
             title('Spatial Spectrum'); grid on; hold off;
         end
         function addPolarMarkers(obj, powdb_array_normalized)
-            [est_pow, est_idx] = maxk(obj.powdb_array, length(obj.est_aoa)); % Get the selected maximum
-            for i = 1:length(obj.est_aoa)
-                polarplot(deg2rad(obj.est_aoa(i)), powdb_array_normalized(est_idx(i)), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
-                text(deg2rad(obj.est_aoa(i)), powdb_array_normalized(est_idx(i))*1.15, ['DoA:', num2str(obj.est_aoa(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
+            [est_pow, est_idx] = maxk(obj.powdb_array, length(obj.aoa_est)); % Get the selected maximum
+            for i = 1:length(obj.aoa_est)
+                polarplot(deg2rad(obj.aoa_est(i)), powdb_array_normalized(est_idx(i)), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
+                text(deg2rad(obj.aoa_est(i)), powdb_array_normalized(est_idx(i))*1.15, ['DoA:', num2str(obj.aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
             end
         end
         

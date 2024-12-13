@@ -1,8 +1,8 @@
 clear; clc; close all;
 %% === User inputs
-ITERATION = 1; % Number of Monte Carlo iterations
-TIME_INST_NUM = 1; % Number of time instances
-SNR_dB = 10; % dB
+ITERATION = 1000; % Number of Monte Carlo iterations
+TIME_INST_NUM = 1500; % Number of time instances
+SNR_dB = 0; % dB
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4;   % Number of elements in the ULA
 
@@ -13,10 +13,10 @@ fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
 area_size = 100;   % 100x100 meter area
 true_AoA = (-85:5:85)'; % Angle range for sweeping to find the AoA
-rx_pos = [10,50;]; % Receiver position (x, y) in meters
+rx_pos = [0,50;]; % Receiver position (x, y) in meters
 tx_pos = cell(size(true_AoA));
 for i = 1:length(true_AoA)
-    tx_pos{i} = [rx_pos(1) + 10*cosd(true_AoA(i)), rx_pos(2) + 10*sind(true_AoA(i))];
+    tx_pos{i} = [rx_pos(1) + 40*cosd(true_AoA(i)), rx_pos(2) + 40*sind(true_AoA(i))];
 end
 n_param = size(tx_pos, 1); % Number of positions to test
 progressbar('reset', n_param); % Reset progress bar
@@ -77,7 +77,7 @@ for idx = 1:n_param
         y_awgn = channel.AWGN(y_ula, nPower);
         % Create local estimator for this iteration
         estimator = DoAEstimator(y_awgn, tx_num, lambda, ...
-            ELEMENT_NUM, element_spacing, sweeping_angle, channel.act_aoa);
+            ELEMENT_NUM, element_spacing, sweeping_angle, channel.aoa_act);
         for m = 1:num_methods
             if doa_est_methods(m).transmitted_signal_required
                 result = estimator.(doa_est_methods(m).name)(s_t);

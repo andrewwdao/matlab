@@ -14,8 +14,8 @@ c = 299792458; % physconst('LightSpeed');
 fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
 area_size = 100;   % 100x100 meter area
-tx_pos = [0+40*cosd(TRUE_ANGLE), 50+40*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
-rx_pos = [0, 50;]; % Receiver position (x, y) in meters
+pos_tx = [0+40*cosd(TRUE_ANGLE), 50+40*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
+pos_rx = [0, 50;]; % Receiver position (x, y) in meters
 
 avg_amp_gain = 1; % Average gain of the channel
 P_t = 1;  % W - Transmit signal power1000Hz
@@ -40,21 +40,21 @@ end
 % Calculate noise parameters with the corresponding average energy and SNR
 nPower = avg_E/db2pow(SNR_dB);
 % Initialize channel model
-channel = ChannelModel(tx_pos, rx_pos, lambda, ELEMENT_NUM, lambda/2);
+channel = ChannelModel(pos_tx, pos_rx, lambda, ELEMENT_NUM, lambda/2);
 y_los = channel.LoS(s_t, avg_amp_gain);  % Received signal at the receiver
 y_ula = channel.applyULA(y_los);  % Apply ULA characteristics to the received signal
 % Calculate the energy of the whole signal transmitted to correct the noise power
 y_awgn = channel.AWGN(y_ula, nPower);
 
 %% === DoA Estimation Algorithm
-estimator = DoAEstimator(y_awgn, size(tx_pos,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, TRUE_ANGLE);
-result = estimator.ML_sync(s_t);
-% result = estimator.BF();
-% result = estimator.MVDR();
-% result = estimator.MUSIC();
-coor_estimator = PosEstimator2D();
-abs_ray = cell(1, 1);
-abs_ray{1} = coor_estimator.calAbsRays(rx_pos, tx_pos, 0, result.est_aoa, ABS_ANGLE_LIM);
+estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, TRUE_ANGLE);
+result = estimator_angle.ML_sync(s_t);
+% result = estimator_angle.BF();
+% result = estimator_angle.MVDR();
+% result = estimator_angle.MUSIC();
+estimator_coor = PosEstimator2D();
+rays_abs = cell(1, 1);
+rays_abs{1} = estimator_coor.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_ANGLE_LIM);
 
 %% === Plotting
 % figure; hold on; grid on;
@@ -62,8 +62,8 @@ abs_ray{1} = coor_estimator.calAbsRays(rx_pos, tx_pos, 0, result.est_aoa, ABS_AN
 % plot(result_bf.spectrum_dB, 'LineWidth', 1, 'DisplayName', "BF");
 % title("Spectrum"); legend("AutoUpdate","on");
 vis_sync = MapVisual(...
-    "ML Sync", tx_pos, rx_pos, area_size, ...
+    "ML Sync", pos_tx, pos_rx, area_size, ...
     sweeping_angle, result.spectrum_dB, ...
-        result.est_aoa);
-vis_sync.plotSingle(abs_ray, SHOW_LIMITS);
+        result.aoa_est);
+vis_sync.plotSingle(rays_abs, SHOW_LIMITS);
 

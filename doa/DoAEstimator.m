@@ -7,11 +7,11 @@ classdef DoAEstimator < handle
         element_spacing % Distance between antenna elements (normalised to lambda units)
         sweeping_angle % Angle range for sweeping to find the AoA
         steer_vect % Steering vector that simulate the effects of the array on the received signal
-        act_aoa % Actual Angle of Arrival
+        aoa_act % Actual Angle of Arrival
     end
 
     methods
-        function obj = DoAEstimator(received_signal, tx_num, lambda, element_num, element_spacing, sweeping_angle, act_aoa)
+        function obj = DoAEstimator(received_signal, tx_num, lambda, element_num, element_spacing, sweeping_angle, aoa_act)
             % --- Constructor to initialize the properties
             % steer_vect: complex Nx1 (Number of elements)x1
             obj.received_signal = received_signal;  % Received signal at the sensor array
@@ -20,7 +20,7 @@ classdef DoAEstimator < handle
             obj.element_num = element_num;  % Number of elements in the ULA
             obj.element_spacing = element_spacing;  % Distance between antenna elements (normalised to lambda units))
             obj.sweeping_angle = sweeping_angle;  % Angle range for sweeping to find the AoA
-            obj.act_aoa = act_aoa;
+            obj.aoa_act = aoa_act;
             obj.steer_vect = zeros(element_num, length(obj.sweeping_angle));
             for i = 1:length(obj.sweeping_angle)
                 obj.steer_vect(:, i) = exp(-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
@@ -38,9 +38,9 @@ classdef DoAEstimator < handle
                 'VariableNames', cellstr(strcat('TX', num2str((1:obj.tx_num)')))));
         end
 
-        function square_err = calculate_square_error(obj, est_aoa)
+        function square_err = calculate_square_error(obj, aoa_est)
             % Calculate the square error between the estimated and true AoA
-            square_err = (est_aoa - obj.act_aoa).^2;
+            square_err = (aoa_est - obj.aoa_act).^2;
         end
 
         function result = parse_output(obj, type, spectrum)
@@ -48,11 +48,11 @@ classdef DoAEstimator < handle
             result.spectrum_dB = 10 * log10(abs(spectrum));
             % Find the peaks in the MVDR spectrum
             % [~, peak_indices] = findpeaks(spectrum_dB,'SortStr','descend');
-            % est_aoa = obj.sweeping_angle(peak_indices(1:obj.tx_num));
+            % aoa_est = obj.sweeping_angle(peak_indices(1:obj.tx_num));
             [~, max_idx] = max(result.spectrum_dB);
-            result.est_aoa = obj.sweeping_angle(max_idx);
-            result.square_err = obj.calculate_square_error(result.est_aoa);
-            % obj.logger(type, est_aoa);
+            result.aoa_est = obj.sweeping_angle(max_idx);
+            result.square_err = obj.calculate_square_error(result.aoa_est);
+            % obj.logger(type, aoa_est);
         end
 
 
