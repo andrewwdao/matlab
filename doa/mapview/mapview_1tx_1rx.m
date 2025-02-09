@@ -48,10 +48,10 @@ y_awgn = channel.AWGN(y_ula, nPower);
 
 %% === DoA Estimation Algorithm
 estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, TRUE_ANGLE);
-result = estimator_angle.ML_sync(s_t);
+% result = estimator_angle.ML_sync(s_t);
 % result = estimator_angle.BF();
 % result = estimator_angle.MVDR();
-% result = estimator_angle.MUSIC();
+result = estimator_angle.MUSIC();
 estimator_coor = PosEstimator2D();
 rays_abs = cell(1, 1);
 rays_abs{1} = estimator_coor.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_ANGLE_LIM);
@@ -62,7 +62,7 @@ rays_abs{1} = estimator_coor.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_A
 % plot(result_bf.spectrum_dB, 'LineWidth', 1, 'DisplayName', "BF");
 % title("Spectrum"); legend("AutoUpdate","on");
 vis_sync = MapVisual(...
-    "ML Sync", pos_tx, pos_rx, area_size, ...
+    "MUSIC", pos_tx, pos_rx, area_size, ...
     sweeping_angle, result.spectrum_dB, ...
         result.aoa_est);
 vis_sync.plotSingle(rays_abs, SHOW_LIMITS);

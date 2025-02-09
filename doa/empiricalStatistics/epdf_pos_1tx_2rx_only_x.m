@@ -75,7 +75,7 @@ for itr=1:ITERATION
     end
     % --- Calculate the aoa intersection point and the RMSE for each method
     aoa_intersect = estimator_coor.calDoAIntersect(rays_abs{1, 1}, rays_abs{2, 1});
-    rmse_values(itr, 1) = round(sqrt((pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2), 0);
+    rmse_values(itr, 1) = round((pos_tx(1,1)-aoa_intersect.x), 0);
 end
 
 %% === Calculate statistics
@@ -90,7 +90,7 @@ histogram(rmse_values, 'BinWidth', 10, ...
     'EdgeColor', 'k');
 xlabel('Estimated RMSE for Coordinate (m)');
 ylabel('Probability Density');
-title(sprintf('Empirical PDF of RMSE for %d iterations at %d dB SNR\nMean: %.2f m, Std: %.2f m', ITERATION, SNR_dB, mean_est_rmse, std_est_rmse));
-xlim([0 700]);
+title(sprintf('Empirical PDF of |x-x^| for %d iterations at %d dB SNR\nMean: %.2f m, Std: %.2f m', ITERATION, SNR_dB, mean_est_rmse, std_est_rmse));
+xlim([-500 500]);
 % Add vertical line for true angle
-xline(0, 'r--', 'Optimal RMSE', 'LineWidth', 1.5, 'LabelOrientation', 'horizontal');
+xline(0, 'r--', 'Optimal value', 'LineWidth', 1.5, 'LabelOrientation', 'horizontal');

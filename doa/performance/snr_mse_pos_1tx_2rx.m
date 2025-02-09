@@ -1,7 +1,7 @@
 clear; clc; close all;
 %% === User inputs
-ITERATION = 1; % Number of Monte Carlo iterations
-TIME_INST_NUM = 1; % Number of time instances
+ITERATION = 1000; % Number of Monte Carlo iterations
+TIME_INST_NUM = 50; % Number of time instances
 SNR_dB =repmat((0:1:20)', 1, 2); %dB
 RX_NUM = 2; % Number of receivers
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree, which will 

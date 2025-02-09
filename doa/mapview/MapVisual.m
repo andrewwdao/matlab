@@ -86,11 +86,28 @@ classdef MapVisual < handle
             legend(obj.algo_type, 'AutoUpdate', 'off');
             title('Spatial Spectrum'); grid on; hold off;
         end
+        function plotSpectrum(obj, estimator_results, method_list)
+            for i = 1:size(estimator_results, 1) % only need to use the first spectrum as they would be the same for all
+                    plot(obj.angle_array, (estimator_results{i,1}.spectrum_dB+estimator_results{i,2}.spectrum_dB), 'LineWidth', 2); hold on;
+            end
+            xlabel('Angle (degrees)');
+            ylabel('Power (dB)');
+            legend(method_list, 'AutoUpdate', 'off');
+            title('Spatial Spectrum'); grid on; hold off;
+        end
+
+        % for i = 1:size(estimator_results, 1)
+        %     colour = rand(1,3); % Random colour for each estimator
+        %     for j = 1:size(estimator_results, 2)
+        %         plot(estimator_results{i,j}.angle_array, estimator_results{i,j}.powdb_array, 'LineWidth', 2, 'Color', colour); hold on;
+        %     end
+        % end
+
         function addPolarMarkers(obj, powdb_array_normalized)
             [est_pow, est_idx] = maxk(obj.powdb_array, length(obj.aoa_est)); % Get the selected maximum
             for i = 1:length(obj.aoa_est)
-                polarplot(deg2rad(obj.aoa_est(i)), powdb_array_normalized(est_idx(i)), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
-                text(deg2rad(obj.aoa_est(i)), powdb_array_normalized(est_idx(i))*1.15, ['DoA:', num2str(obj.aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
+                polarplot(deg2rad(obj.aoa_est(i)), powdb_array_normalized(est_idx(i)), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2, 'Color', 'red'); hold on;
+                text(deg2rad(obj.aoa_est(i)), powdb_array_normalized(est_idx(i))*1.3, ['DoA:', num2str(obj.aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
             end
         end
         
@@ -130,6 +147,16 @@ classdef MapVisual < handle
             obj.plotMapOnly(obj.area_size, obj.tx_pos, obj.rx_pos, abs_ray);hold on;
             subplot(2,2,[3,4]);
             obj.plotNormalSpectrum(); hold on;
+            subplot(2,2,2);
+            obj.plotPolarSpectrum(); hold off;
+        end
+
+        function plotMultiple(obj, abs_ray, estimator_results, method_list)
+            figure('Name', 'Map Visualisation with detailed spectrum', 'WindowState', 'maximized'); clf; hold on;
+            subplot(2,2,1);
+            obj.plotMapOnly(obj.area_size, obj.tx_pos, obj.rx_pos, abs_ray);hold on;
+            subplot(2,2,[3,4]);
+            obj.plotSpectrum(estimator_results, method_list); hold on;
             subplot(2,2,2);
             obj.plotPolarSpectrum(); hold off;
         end
