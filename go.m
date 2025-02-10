@@ -1,6 +1,6 @@
 % add folders to search path
 cur_dir = pwd;
-folders = {'doa'};
+folders = {'doa','localisation'};
 for ii = 1:length(folders)
     addpath(genpath(fullfile(cur_dir, folders{ii})));
 end
