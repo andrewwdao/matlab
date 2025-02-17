@@ -12,12 +12,13 @@ c = 299792458; % physconst('LightSpeed');
 fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
 area_size = 100;   % 100x100 meter area
-true_AoA = (-85:5:85)'; % Angle range for sweeping to find the AoA
+aoa_act = (-85:5:85)'; % Angle range for sweeping to find the AoA
 rx_pos = [0,50;]; % Receiver position (x, y) in meters
-tx_pos = cell(size(true_AoA));
-for i = 1:length(true_AoA)
-    tx_pos{i} = [rx_pos(1) + 40*cosd(true_AoA(i)), rx_pos(2) + 40*sind(true_AoA(i))];
+tx_pos = cell(size(aoa_act));
+for i = 1:length(aoa_act)
+    tx_pos{i} = [rx_pos(1) + 40*cosd(aoa_act(i)), rx_pos(2) + 40*sind(aoa_act(i))];
 end
+
 n_param = size(tx_pos, 1); % Number of positions to test
 progressbar('reset', n_param); % Reset progress bar
 progressbar('displaymode', 'append'); % Reset progress bar
@@ -41,18 +42,18 @@ num_methods = numel(doa_est_methods);  % Automatically get number of methods fro
 mse_values = zeros(n_param, num_methods);
 square_err = zeros(ITERATION, num_methods);
 % Preallocate CRB array
-CRB_values = zeros(size(true_AoA));
-CRB_Stoica_values = zeros(size(true_AoA));
+CRB_values = zeros(size(aoa_act));
+CRB_Stoica_values = zeros(size(aoa_act));
 
 %% ==== Loop through each Tx position to test the accuracy from measuring the MSE
+% Initialize channel model
+channel = ChannelModels();
 for idx = 1:n_param
     progressbar('advance'); % Update progress bar
     % Pre-calculate required values outside loop
     tx_num = size(tx_pos{idx}, 1);
     % Generate base signal
     s_t = sqrt(P_t(idx)) .* exp(1j * 2 * pi * sub_carrier(idx) * t);
-    % Initialize channel model
-    channel = ChannelModel(tx_pos{idx}, rx_pos, lambda, ELEMENT_NUM, element_spacing);
     % Calculate average energy of the signal
     if FIXED_TRANS_ENERGY == true
         % Average engery is fixed for whole transmission time
@@ -66,18 +67,18 @@ for idx = 1:n_param
     % Calculate noise parameters with the corresponding average energy and SNR
     nPower = avg_E/db2pow(SNR_dB);
     % Calculate CRB for the current position
-    CRB_values(idx) = channel.CRB_det_1d_simp(s_t, nPower);
-    CRB_Stoica_values(idx) = channel.CRB_det_1d(s_t, nPower);
+    CRB_values(idx) = channel.CRB_det_1d_simp(s_t, nPower, aoa_act(idx), ELEMENT_NUM, lambda);
+    CRB_Stoica_values(idx) = channel.CRB_det_1d(s_t, nPower,  aoa_act(idx), ELEMENT_NUM, element_spacing, lambda);
     % CRB_values(idx)/CRB_Stoica_values(idx)
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         % Generate received signal
         y_los = channel.LoS(s_t, avg_amp_gain);
-        y_ula = channel.applyULA(y_los);
+        y_ula = channel.applyULA(y_los,  aoa_act(idx), ELEMENT_NUM, element_spacing, lambda);
         y_awgn = channel.AWGN(y_ula, nPower);
         % Create local estimator for this iteration
         estimator = DoAEstimator(y_awgn, tx_num, lambda, ...
-            ELEMENT_NUM, element_spacing, sweeping_angle, channel.aoa_act);
+            ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(idx));
         for m = 1:num_methods
             if doa_est_methods(m).transmitted_signal_required
                 result = estimator.(doa_est_methods(m).name)(s_t);
@@ -91,10 +92,10 @@ for idx = 1:n_param
 end
 %% === Plot the MSE vs AoA
 figure;
-semilogy(true_AoA, CRB_values, 'r--', 'LineWidth', 1.5, 'DisplayName', 'CRB');grid on; hold on; % Plot CRB
-semilogy(true_AoA, CRB_Stoica_values, 'b--', 'LineWidth', 1.5, 'DisplayName', 'CRB Stoica');grid on; hold on; % Plot CRB
+semilogy(aoa_act, CRB_values, 'r--', 'LineWidth', 1.5, 'DisplayName', 'CRB');grid on; hold on; % Plot CRB
+semilogy(aoa_act, CRB_Stoica_values, 'b--', 'LineWidth', 1.5, 'DisplayName', 'CRB Stoica');grid on; hold on; % Plot CRB
 for i= 1:num_methods % Plot the rest of the estimation methods' MSE
-    semilogy(true_AoA, mse_values(:,i), 'LineWidth', 1, 'DisplayName', strrep(doa_est_methods(i).name, '_', ' '));
+    semilogy(aoa_act, mse_values(:,i), 'LineWidth', 1, 'DisplayName', strrep(doa_est_methods(i).name, '_', ' '));
 end
 title(['MSE of ', num2str(TIME_INST_NUM), 'ts with total SNR=', num2str(SNR_dB), 'dB']); legend("AutoUpdate","on");
 ylim([1e-5, 1e4]);

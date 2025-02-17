@@ -15,6 +15,16 @@ lambda = c / fc; % Wavelength
 area_size = 100;   % 100x100 meter area
 rx_pos = [10, 50;]; % Receiver position (x, y) in meters
 tx_pos = [rx_pos(1) + 10*cosd(TRUE_ANGLE), rx_pos(2) + 10*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
+aoa_act = zeros(size(rx_pos, 1), size(tx_pos, 1));
+dist_act = zeros(size(rx_pos, 1), size(tx_pos, 1));
+for i = 1:size(rx_pos, 1)
+    for j = 1:size(tx_pos, 1)
+        aoa_act(i,j) = atan2d(tx_pos(j,2) - rx_pos(i,2), tx_pos(j,1) - rx_pos(i,1)); % AoA in degrees - atan(y_tx-y_rx/x_tx-x_rx)
+        dist_act = sqrt((tx_pos(j,1) - rx_pos(i,1))^2 + (tx_pos(j,2) - rx_pos(i,2))^2); % Euclidean distance between Tx and Rx - sqrt((x_tx-x_rx)^2 + (y_tx-y_rx)^2)
+    end
+end
+
+
 n_param = length(SNR_dB); % Number of positions to test
 progressbar('reset', n_param); % Reset progress bar
 progressbar('displaymode', 'append'); % Reset progress bar
@@ -47,7 +57,7 @@ for idx=1:n_param
     % Generate base signal
     s_t = sqrt(P_t(tx_num)) .* exp(1j * 2 * pi * sub_carrier(tx_num) * t);
     % Initialize channel model
-    channel = ChannelModel(tx_pos, rx_pos, lambda, ELEMENT_NUM, element_spacing);
+    channel = ChannelModels();
     % Calculate average energy of the signal
     if FIXED_TRANS_ENERGY == true
         % Average engery is fixed for whole transmission time
@@ -61,17 +71,17 @@ for idx=1:n_param
     % Calculate noise parameters with the corresponding average energy and SNR
     nPower = avg_E/db2pow(SNR_dB(idx));
     % Calculate CRB for the current position
-    CRB_values(idx) = channel.CRB_det_1d_simp(s_t, nPower);
-    CRB_Stoica_values(idx) = channel.CRB_det_1d(s_t, nPower);
+    CRB_values(idx) = channel.CRB_det_1d_simp(s_t, nPower, aoa_act, ELEMENT_NUM, lambda);
+    CRB_Stoica_values(idx) = channel.CRB_det_1d(s_t, nPower, aoa_act, ELEMENT_NUM, element_spacing, lambda);
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         % Generate received signal
         y_los = channel.LoS(s_t, avg_amp_gain);
-        y_ula = channel.applyULA(y_los);
+        y_ula = channel.applyULA(y_los, aoa_act, ELEMENT_NUM, element_spacing, lambda);
         y_awgn = channel.AWGN(y_ula, nPower);
         % Create local estimator for this iteration
         estimator = DoAEstimator(y_awgn, tx_num, lambda, ...
-            ELEMENT_NUM, element_spacing, sweeping_angle, channel.aoa_act);
+            ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act);
         for m = 1:num_methods
             if doa_est_methods(m).transmitted_signal_required
                 result = estimator.(doa_est_methods(m).name)(s_t);

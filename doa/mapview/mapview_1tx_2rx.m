@@ -15,8 +15,8 @@ fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
 % --- Location Calculation
 area_size = 100;   % 100x100 meter area
-aoa_true = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1); % true Angle of Arrival from RX to TX that will later be transformed to the absolute angle
-% aoa_true = [-6.8; 45.6];
+aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1); % true Angle of Arrival from RX to TX that will later be transformed to the absolute angle
+% aoa_act = [-6.8; 45.6];
 pos_tx = [50, 50]; % Transmitter position (x, y) in meters
 pos_rx = area_size*rand(RX_NUM, 2); % Random Receiver position (x, y) in meters
 % pos_rx = [15.98, 54.27; 67.64, 69.28];
@@ -24,7 +24,7 @@ angle_rx_tx_abs = zeros(RX_NUM, 1);
 for i = 1:RX_NUM  % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
 end
-rot_abs = angle_rx_tx_abs - aoa_true; % Absolute rotation of the receiver in degrees
+rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
 
 progressbar('reset', RX_NUM); % Reset progress bar
 progressbar('displaymode', 'append'); % Reset progress bar
@@ -42,6 +42,8 @@ sweeping_angle = -90:RESOLUTION:90; % Angle range for finding the AoA
 aoa_rel_est = zeros(RX_NUM, 1);
 rays_abs = cell(RX_NUM, 1);
 estimator_coor = PosEstimator2D();
+% Initialize channel model
+channel = ChannelModels();
 for rx_idx=1:RX_NUM
     progressbar('advance'); % Update progress bar
     % Generate base signal
@@ -58,15 +60,13 @@ for rx_idx=1:RX_NUM
     end
     % Calculate noise parameters with the corresponding average energy and SNR
     nPower = avg_E/db2pow(SNR_dB(rx_idx));
-    % Initialize channel model
-    channel = ChannelModelAoA(aoa_true(rx_idx), lambda, ELEMENT_NUM, element_spacing);
     %% === Generate original signal received at Rx
     y_los = channel.LoS(s_t, avg_amp_gain);  % Received signal at the receiver
-    y_ula = channel.applyULA(y_los);  % Apply ULA characteristics to the received signal
+    y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);  % Apply ULA characteristics to the received signal
     y_awgn = channel.AWGN(y_ula, nPower);
 
     %% === DoA Estimation Algorithm
-    estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_true);
+    estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act);
     aoa_rel_est(rx_idx) = estimator_angle.ML_sync(s_t).aoa_est;
     rays_abs{rx_idx} = estimator_coor.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx), ABS_ANGLE_LIM);
 end
@@ -89,7 +89,7 @@ fprintf('%.2f  ', angle_rx_tx_abs);
 fprintf('\n');
 
 fprintf('True AoA (degrees):\n  ');
-fprintf('%.2f  ', aoa_true);
+fprintf('%.2f  ', aoa_act);
 fprintf('\n');
 
 fprintf('Estimated AoA (degrees):\n  ');

@@ -1,6 +1,6 @@
 clear; clc; close all;
 %% === User inputs
-ITERATION = 1000; % Number of Monte Carlo iterations
+ITERATION = 1; % Number of Monte Carlo iterations
 TIME_INST_NUM = 50; % Number of time instances
 SNR_dB =repmat((0:1:20)', 1, 2); %dB
 RX_NUM = 2; % Number of receivers
@@ -61,33 +61,33 @@ for snr_idx=1:n_param
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         % --- Location Refresh for each iteration
-        aoa_true = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1); % true Angle of Arrival from RX to TX that will later be transformed to the absolute angle
+        aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1); % true Angle of Arrival from RX to TX that will later be transformed to the absolute angle
         pos_rx = area_size*rand(RX_NUM, 2); % Random Receiver position (x, y) in meters
         angle_rx_tx_abs = zeros(RX_NUM, 1);
         for i = 1:RX_NUM
             % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
             angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
         end
-        rot_abs = angle_rx_tx_abs - aoa_true; % Absolute rotation of the receiver in degrees
+        rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
         
         
         %% === DoA Estimation Algorithm
         aoa_rel_est = zeros(RX_NUM, num_methods);
         rays_abs = cell(RX_NUM, num_methods);
+        % Initialize channel model
+        channel = ChannelModels();
         for method_idx = 1:num_methods
             %% === Loop through each RX to find the ray from AoA
             for rx_idx=1:RX_NUM
                 % Calculate noise parameters with the corresponding average energy and SNR
                 nPower = avg_E/db2pow(SNR_dB(snr_idx, rx_idx));
-                % Initialize channel model
-                channel = ChannelModelAoA(aoa_true(rx_idx), lambda, ELEMENT_NUM, element_spacing);
                 %% === Generate original signal received at Rx
                 y_los = channel.LoS(s_t, avg_amp_gain);
-                y_ula = channel.applyULA(y_los);
+                y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
                 y_awgn = channel.AWGN(y_ula, nPower);
 
                 estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ...
-                    ELEMENT_NUM, element_spacing, sweeping_angle, aoa_true(rx_idx));
+                    ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(rx_idx));
                 if doa_est_methods(method_idx).transmitted_signal_required
                     aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)(s_t).aoa_est;
                 else

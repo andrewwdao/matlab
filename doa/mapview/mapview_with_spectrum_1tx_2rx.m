@@ -4,7 +4,7 @@ SNR_dB = 20; %dB
 SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
 TIME_INST_NUM = 100; % Number of time instances
-TRUE_ANGLE = [30, 35]; % True Angle of Arrival
+aoa_act = [30, 35]; % True Angle of Arrival
 RESOLUTION = 0.1; % Angle resolution in degree
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 16; % Number of elements in the ULA
@@ -14,11 +14,11 @@ c = 299792458; % physconst('LightSpeed');
 fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
 area_size = 100;   % 100x100 meter area
-pos_tx = zeros(length(TRUE_ANGLE), 2);
-for i = 1:length(TRUE_ANGLE)
-    pos_tx(i, :) = [0+40*cosd(TRUE_ANGLE(i)), 50+40*sind(TRUE_ANGLE(i));]; % Transmitter position (x, y) in meters
+pos_tx = zeros(length(aoa_act), 2);
+for i = 1:length(aoa_act)
+    pos_tx(i, :) = [0+40*cosd(aoa_act(i)), 50+40*sind(aoa_act(i));]; % Transmitter position (x, y) in meters
 end
-% pos_tx = [0+40*cosd(TRUE_ANGLE), 50+40*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
+% pos_tx = [0+40*cosd(aoa_act), 50+40*sind(aoa_act);]; % Transmitter position (x, y) in meters
 pos_rx = [0, 50;]; % Receiver position (x, y) in meters
 tx_num = size(pos_tx, 1);
 avg_amp_gain = 1; % Average gain of the channel
@@ -54,16 +54,15 @@ method_list = reshape(struct2cell(doa_est_methods), [], 1);
 estimator_results = cell(num_methods, tx_num);
 rays_abs = cell(tx_num, 1);
 estimator_coor = PosEstimator2D();
+channel = ChannelModels();  % Initialize channel model
 for method_idx=1:num_methods
     for tx_idx = 1:tx_num
-        % Initialize channel model
-        channel = ChannelModel(pos_tx(tx_idx,:), pos_rx, lambda, ELEMENT_NUM, lambda/2);
         y_los = channel.LoS(s_t, avg_amp_gain);  % Received signal at the receiver
-        y_ula = channel.applyULA(y_los);  % Apply ULA characteristics to the received signal
+        y_ula = channel.applyULA(y_los, aoa_act(tx_idx), ELEMENT_NUM, element_spacing, lambda);  % Apply ULA characteristics to the received signal
         % Calculate the energy of the whole signal transmitted to correct the noise power
         y_awgn = channel.AWGN(y_ula, nPower);
         % Initialize DoA Estimator
-        estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, TRUE_ANGLE(tx_idx));
+        estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(tx_idx));
         estimator_results{method_idx, tx_idx} = estimator_angle.(doa_est_methods(method_idx).name)();
         rays_abs{tx_idx} = estimator_coor.calAbsRays(pos_rx, pos_tx(tx_idx,:), 0, estimator_results{method_idx, tx_idx}.aoa_est, ABS_ANGLE_LIM);
     end

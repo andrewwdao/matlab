@@ -1,6 +1,6 @@
 clear; clc; close all;
 %% === User inputs
-ITERATION = 10000; % Number of Monte Carlo iterations
+ITERATION = 100; % Number of Monte Carlo iterations
 SNR_dB = -120; %dB
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
 TIME_INST_NUM = 150; % Number of time instances
@@ -17,14 +17,14 @@ area_size = 100;   % 100x100 meter area
 
 pos_tx = [50, 50]; % Transmitter position (x, y) in meters
 pos_rx = [15.98, 54.27; 67.64, 69.28];
-aoa_true = [-6.8; 45.6];
+aoa_act = [-6.8; 45.6];
 
 RX_NUM = size(pos_rx, 1); % Number of receivers
 angle_rx_tx_abs = zeros(RX_NUM, 1);
 for i = 1:RX_NUM  % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
 end
-rot_abs = angle_rx_tx_abs - aoa_true; % Absolute rotation of the receiver in degrees
+rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
 
 avg_amp_gain = 1; % Average gain of the channel
 P_t = 1;  % W - Transmit signal power1000Hz
@@ -53,20 +53,21 @@ progressbar('displaymode', 'append'); % Reset progress bar
 progressbar('minimalupdateinterval', 1); % Update progress bar every x seconds
 rmse_values = zeros(ITERATION, 1);
 estimator_coor = PosEstimator2D();
+% Initialize channel model
+channel = ChannelModels();
+
 for itr=1:ITERATION
     progressbar('advance'); % Update progress bar
     %% === Loop through each RX
     aoa_rel_est = zeros(RX_NUM, 1);
     rays_abs = cell(RX_NUM, 1);
     for rx_idx=1:RX_NUM
-        % Initialize channel model
-        channel = ChannelModelAoA(aoa_true(rx_idx), lambda, ELEMENT_NUM, element_spacing);
         y_los = channel.LoS(s_t, avg_amp_gain);
-        y_ula = channel.applyULA(y_los);
+        y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
         y_awgn = channel.AWGN(y_ula, nPower);
 
         %% === DoA Estimation Algorithm
-        estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_true(rx_idx));
+        estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(rx_idx));
         aoa_rel_est(rx_idx, 1) = estimator_angle.ML_sync(s_t).aoa_est;
         % result = estimator_angle.BF();
         % result = estimator_angle.MVDR();
