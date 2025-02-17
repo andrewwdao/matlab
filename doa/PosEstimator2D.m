@@ -1,3 +1,5 @@
+%% TODO: merge this to Visualise2DMap.m and remove this file
+
 classdef PosEstimator2D < handle
     properties
     end

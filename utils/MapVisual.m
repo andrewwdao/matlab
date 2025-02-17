@@ -1,4 +1,6 @@
 
+%% TODO: convert the spectrum visualisation to a dedicated class and remove this one
+
 classdef MapVisual < handle
     properties
         algo_type  % Algorithm type

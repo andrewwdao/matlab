@@ -60,7 +60,20 @@ classdef Visualise2DMap < handle
             xlim([0 area_size]); ylim([0 area_size]);
             title('Map Visualisation'); grid on; hold off;
         end
+
         function addMarkers(~, x, y, text_str, color)
+            %   Plots a marker at the given (x, y) coordinates with an associated text label.
+            %
+            % Inputs:
+            %   x         - The x-coordinate for the marker.
+            %   y         - The y-coordinate for the marker.
+            %   text_str  - The text string to display near the marker.
+            %   color     - The color specification for both the marker and the text.
+            %
+            % Notes:
+            %   - A circle marker is plotted at (x, y) with a specified marker size and line width.
+            %   - A text label is added with an offset from the (x, y) coordinates.
+            %   - 'hold on' is called to retain the current plot when adding new elements.
             plot(x, y, 'Marker', 'o', 'Color', color, 'MarkerSize', 10, 'LineWidth', 3, 'LineStyle', 'none'); hold on;
             text(x+1.5, y-2.5, text_str, 'Color', color, 'FontSize', 12); hold on;
         end

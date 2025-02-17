@@ -68,7 +68,7 @@ classdef DoAEstimator < handle
             received_signal_local = obj.received_signal;
             parfor i = 1:length(obj.sweeping_angle)
                 for t = 1:size(s_t,2) % consider each time instance separately
-                    spectrum(i) = spectrum(i)+ real(received_signal_local(:,t)' * steer_vect_local(:, i) * s_t(:,t));
+                    spectrum(i) = spectrum(i)+ real(received_signal_local(:,t)' * steer_vect_local(:, i) * s_t(:,t)); %#ok<PFBNS>
                 end
             end
             % Parse the output to readable format
@@ -87,7 +87,7 @@ classdef DoAEstimator < handle
             received_signal_local = obj.received_signal;
             parfor i = 1:length(obj.sweeping_angle)
                 for t = 1:size(s_t,2) % consider each time instance separately
-                    spectrum(i) = spectrum(i) + received_signal_local(:,t)' * steer_vect_local(:, i) * steer_vect_local(:, i)' * received_signal_local(:,t);
+                    spectrum(i) = spectrum(i) + received_signal_local(:,t)' * steer_vect_local(:, i) * steer_vect_local(:, i)' * received_signal_local(:,t); %#ok<PFBNS>
                 end
             end
             % Parse the output to readable format
