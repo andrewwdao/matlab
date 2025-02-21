@@ -3,8 +3,8 @@
 
 function [X, Y, L] = CoordinatesMaximumLikelihood(area_size, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
     %% Compute ML Function L(x,y)
-    x = linspace(0, area_size, 100);
-    y = linspace(0, area_size, 100);
+    x = linspace(0, area_size, area_size+1);
+    y = linspace(0, area_size, area_size+1);
     [X, Y] = meshgrid(x, y);
 
     % Calculate the angular components for each receiver using function f

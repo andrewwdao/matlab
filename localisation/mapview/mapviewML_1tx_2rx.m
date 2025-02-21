@@ -66,7 +66,8 @@ for rx_idx = 1:RX_NUM
     w{rx_idx} = y_awgn;
 end
 
-[X, Y, L] = CoordinatesMaximumLikelihood(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
+nPower_model = 1; % Noise power level for the model
+[X, Y, L] = CoordinatesMaximumLikelihood(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
 
 %% === Plotting
 fprintf('SNR (dB):\n')
