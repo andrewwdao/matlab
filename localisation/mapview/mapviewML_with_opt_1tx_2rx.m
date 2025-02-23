@@ -7,7 +7,7 @@ clear; clc; close all;
 
 %% User Inputs and Configurations
 RX_NUM = 2;                         % Number of receivers
-SNR_dB = 0 * ones(RX_NUM, 1);       % SNR in dB
+SNR_dB = 10 * ones(RX_NUM, 1);       % SNR in dB
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
@@ -59,7 +59,8 @@ for rx_idx = 1:RX_NUM
     % Generate base signal (using last element index as in the original code)
     s_t = sqrt(P_t(RX_NUM)) .* exp(1j * 2 * pi * sub_carrier(RX_NUM) * t);
     avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * (avg_amp_gain^2 * P_t(RX_NUM) * T * Fs);
-    nPower = avg_E / db2pow(SNR_dB(rx_idx));
+    % nPower = avg_E / db2pow(SNR_dB(rx_idx));
+    nPower = 0;
     y_los = channel.LoS(s_t, avg_amp_gain);
     y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
     y_awgn = channel.AWGN(y_ula, nPower);
@@ -69,7 +70,33 @@ end
 nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
 [X, Y, L] = l4c.CalculateLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
+% Use an optimisation algorithm to find the maximum likelihood estimate
+% of the transmitter position given the received signals at the receivers.
+% objective = @(coor) -abs(l4c.fminconCalculateLikelihood(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model));
+% % Initial guess ([x,y] start at the center of the area)
+% coor0 = [30, 30];
+% % Set bounds (assuming the area is from 0 to area_size in both x and y)
+% lb = [0, 0];
+% ub = [area_size, area_size];
 
+% % Options for fmincon for display and algorithm selection
+% options = optimoptions('fmincon', 'Display', 'iter', 'Algorithm', 'interior-point');
+
+% % Run the optimizer to find the maximum of L (by minimizing -L)
+% [optCoord, negL_peak] = fmincon(objective, coor0, [], [], [], [], lb, ub, [], options);
+
+% % Convert to positive likelihood value
+% L_peak = -negL_peak;
+
+% fprintf('Peak found at (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
+
+% Use MLoptimizer class to find the maximum likelihood estimate
+grid_points = 5; % Define a 5x5 coarse grid for initial guesses
+optimizer = MLoptimiser(l4c, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model, area_size, grid_points);
+[optCoord, L_peak] = optimizer.findMaxLikelihood();
+
+% Print the result
+fprintf('Peak found at (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
 %% === Plotting
 fprintf('SNR (dB):\n')
 fprintf('%.0f  ', SNR_dB); fprintf('\n');
