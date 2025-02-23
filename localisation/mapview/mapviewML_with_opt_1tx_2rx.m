@@ -70,33 +70,21 @@ end
 nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
 [X, Y, L] = l4c.CalculateLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
-% Use an optimisation algorithm to find the maximum likelihood estimate
-% of the transmitter position given the received signals at the receivers.
-% objective = @(coor) -abs(l4c.fminconCalculateLikelihood(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model));
-% % Initial guess ([x,y] start at the center of the area)
-% coor0 = [30, 30];
-% % Set bounds (assuming the area is from 0 to area_size in both x and y)
-% lb = [0, 0];
-% ub = [area_size, area_size];
+% Define the objective function to maximize
+objective_to_maximize = @(coor) -abs(l4c.fminconCalculateLikelihood(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model));
 
-% % Options for fmincon for display and algorithm selection
-% options = optimoptions('fmincon', 'Display', 'iter', 'Algorithm', 'interior-point');
+% Set bounds
+lb = [0, 0];
+ub = [area_size, area_size];
 
-% % Run the optimizer to find the maximum of L (by minimizing -L)
-% [optCoord, negL_peak] = fmincon(objective, coor0, [], [], [], [], lb, ub, [], options);
-
-% % Convert to positive likelihood value
-% L_peak = -negL_peak;
-
-% fprintf('Peak found at (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
-
-% Use MLoptimizer class to find the maximum likelihood estimate
+% Use MLoptimiser class to find the maximum likelihood estimate
 grid_points = 5; % Define a 5x5 coarse grid for initial guesses
-optimizer = MLoptimiser(l4c, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model, area_size, grid_points);
-[optCoord, L_peak] = optimizer.findMaxLikelihood();
+optimizer = gridOptimiser();
+[optCoord, L_peak] = optimizer.fmincon(objective_to_maximize, {}, lb, ub, grid_points);
 
 % Print the result
 fprintf('Peak found at (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
+
 %% === Plotting
 fprintf('SNR (dB):\n')
 fprintf('%.0f  ', SNR_dB); fprintf('\n');
