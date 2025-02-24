@@ -30,7 +30,10 @@ pos_tx = [50, 50];                  % Tx at center
 % aoa_act = [-6.8; 45.6];            % True AoA from Rx to Tx
 % aoa_act = [-1.1; -5.4];
 % --- Fixed rx and aoa - optimal scenario
-pos_rx = [21, 51; 51, 81]; % Two Rx positions
+% pos_rx = [21, 51; 51, 81]; % Two Rx positions
+% aoa_act = [0; 0];            % True AoA from Rx to Tx
+% ---
+pos_rx = [21, 51; 81, 49]; % Two Rx positions
 aoa_act = [0; 0];            % True AoA from Rx to Tx
 
 
@@ -78,7 +81,7 @@ lb = [0, 0];
 ub = [area_size, area_size];
 
 % Use MLoptimiser class to find the maximum likelihood estimate
-grid_points = 11; % Define a 5x5 coarse grid for initial guesses
+grid_points = 13; % Define a coarse grid for initial guesses
 optimiser = gridOptimiser();
 [optCoord, L_peak] = optimiser.fmincon2D(objective_to_maximize, {}, lb, ub, grid_points);
 
