@@ -79,8 +79,8 @@ ub = [area_size, area_size];
 
 % Use MLoptimiser class to find the maximum likelihood estimate
 grid_points = 11; % Define a 5x5 coarse grid for initial guesses
-optimizer = gridOptimiser();
-[optCoord, L_peak] = optimizer.fmincon(objective_to_maximize, {}, lb, ub, grid_points);
+optimiser = gridOptimiser();
+[optCoord, L_peak] = optimiser.fmincon2D(objective_to_maximize, {}, lb, ub, grid_points);
 
 % Print the result
 fprintf('Peak found at (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);

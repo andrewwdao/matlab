@@ -1,78 +1,95 @@
 classdef DoAEstimator < handle
     properties
-        received_signal % Received signal at the sensor array
-        tx_num % Number of transmitters
-        lambda % Wavelength (m)
-        element_num % Number of elements in the ULA
-        element_spacing % Distance between antenna elements (normalised to lambda units)
-        sweeping_angle % Angle range for sweeping to find the AoA
-        steer_vect % Steering vector that simulate the effects of the array on the received signal
-        aoa_act % Actual Angle of Arrival
+        antenna_array       % Instance of AntennaArray (e.g., ULA)
+        sweeping_angle      % Angle range for sweeping to find the AoA
+        steer_vect          % Precomputed steering vectors for sweeping angles
+        estimation_mode = 'opt'  % Default mode: 'sweep', 'opt', or 'both'
+        grid_points = 10   % Number of grid points for optimization
+        aoa_act             % Actual AoA for error calculation
     end
-
+    
     methods
-        function obj = DoAEstimator(received_signal, tx_num, lambda, element_num, element_spacing, sweeping_angle, aoa_act)
-            % --- Constructor to initialize the properties
-            % steer_vect: complex Nx1 (Number of elements)x1
-            obj.received_signal = received_signal;  % Received signal at the sensor array
-            obj.tx_num = tx_num;  % Number of transmitters
-            obj.lambda = lambda;  % Wavelength (m)
-            obj.element_num = element_num;  % Number of elements in the ULA
-            obj.element_spacing = element_spacing;  % Distance between antenna elements (normalised to lambda units))
-            obj.sweeping_angle = sweeping_angle;  % Angle range for sweeping to find the AoA
-            obj.aoa_act = aoa_act;
-            obj.steer_vect = zeros(element_num, length(obj.sweeping_angle));
-            for i = 1:length(obj.sweeping_angle)
-                obj.steer_vect(:, i) = exp(-2j * pi * obj.element_spacing * (0:obj.element_num-1)' * sind(obj.sweeping_angle(i)) / obj.lambda);
+        % Constructor: Initialize with antenna array, sweeping angles, and optional estimation_mode
+        function obj = DoAEstimator(antenna_array, sweeping_angle, estimation_mode, grid_points, aoa_act)
+            % Inputs:
+            %   antenna_array: Instance of AntennaArray (e.g., ULA)
+            %   sweeping_angle: Array of angles for coarse grid search
+            %   estimation_mode (optional): 'sweep', 'opt', or 'both'
+            if nargin >= 3
+                obj.estimation_mode = estimation_mode;
+                obj.grid_points = grid_points;
+                obj.aoa_act = aoa_act;
+            end
+            obj.antenna_array = antenna_array;
+            obj.sweeping_angle = sweeping_angle;
+            if ~strcmp(obj.estimation_mode, 'opt')
+                % Precompute steering vectors for sweeping angles
+                obj.steer_vect = antenna_array.getSteeringVector(sweeping_angle(:));
             end
         end
-
-        function logger(obj, purpose, values)
+        
+        % Utility method to log estimated angles
+        function logger(~, purpose, values)
+            tx_num = length(values);
             disp('--------------------------------------------------------');
             disp('Estimated Angles of Arrival');
             disp(purpose);
             disp('--------------------------------------------------------');
-            disp(array2table(...
-                values, ...% table data
+            disp(array2table(values, ...
                 'RowNames', cellstr(strcat('RX', num2str((1:1)'))), ...
-                'VariableNames', cellstr(strcat('TX', num2str((1:obj.tx_num)')))));
+                'VariableNames', cellstr(strcat('TX', num2str((1:tx_num)')))));
         end
-
-        function square_err = calculate_square_error(obj, aoa_est)
-            % Calculate the square error between the estimated and true AoA
-            square_err = (aoa_est - obj.aoa_act).^2;
-        end
-
-        function result = parse_output(obj, type, spectrum)
-            % Convert the spectrum to dB scale
-            result.spectrum_dB = 10 * log10(abs(spectrum));
-            % Find the peaks in the spectrum
-            % [~, peak_indices] = findpeaks(spectrum_dB,'SortStr','descend');
-            % aoa_est = obj.sweeping_angle(peak_indices(1:obj.tx_num));
-            [~, max_idx] = max(result.spectrum_dB);
+        
+        function result = applySweeping(obj, objective)
+            spectrum = zeros(size(obj.sweeping_angle));
+            for i = 1:length(obj.sweeping_angle)
+                spectrum(i) = objective(obj.sweeping_angle(i));
+            end
+            % Find peak in spectrum
+            [~, max_idx] = max(spectrum);
+            % Store results
             result.aoa_est = obj.sweeping_angle(max_idx);
-            result.square_err = obj.calculate_square_error(result.aoa_est);
-            % obj.logger(type, aoa_est);
+            result.square_err = (result.aoa_est - obj.aoa_act).^2;
+            result.spectrum_dB = 10 * log10(abs(spectrum)); % Convert to dB for plotting
+        end
+
+        function result = applyOptimization(obj, objective)
+            % Instantiate gridOptimiser
+            optimiser = gridOptimiser();
+            % Global search over full angle range
+            lb = -90; % Lower bound angle
+            ub = 90; % Upper bound angle
+            % Perform optimization using gridOptimiser.fmincon
+            [opt_angle, ~] = optimiser.fmincon1D(objective, {}, lb, ub, obj.grid_points);
+            % Store results
+            result.aoa_est = opt_angle;
+            result.square_err = (opt_angle - obj.aoa_act).^2;
+        end
+
+        % Parse output and compute AoA based on estimation_mode
+        function result = parse_output(obj, objective)
+            if strcmp(obj.estimation_mode, 'sweep')
+                result= obj.applySweeping(objective);
+            elseif strcmp(obj.estimation_mode, 'opt')
+                result = obj.applyOptimization(objective);
+            end
         end
 
 
-        function result = ML_sync(obj, s_t)
+        function result = ML_sync(obj, received_signal, transmitted_signal)
             % Assume received signal: synchoronous signal with noise
-            % Model: y = steering_vector*s_t + noise;
+            % Model: y = steering_vector*transmitted_signal + noise;
             % (know the transmitted symbols before channel and array effects)
-            % s_t: complex 1xT (1 TX)x(Number of samples)
+            % transmitted_signal: complex 1xT (1 TX)x(Number of samples)
             % obj.received_signal: complex NxT (Number of elements)x(Number of samples)
             % steering_vector: complex Nx1 (Number of elements)x1
-            spectrum = zeros(size(obj.sweeping_angle));
-            steer_vect_local = obj.steer_vect;
-            received_signal_local = obj.received_signal;
-            parfor i = 1:length(obj.sweeping_angle)
-                for t = 1:size(s_t,2) % consider each time instance separately
-                    spectrum(i) = spectrum(i)+ real(received_signal_local(:,t)' * steer_vect_local(:, i) * s_t(:,t)); %#ok<PFBNS>
-                end
-            end
-            % Parse the output to readable format
-            result = obj.parse_output('Sync ML', spectrum);
+
+            steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
+            % objective_to_maximise = @(theta) sum(arrayfun(@(t) real(received_signal(:,t)' * ...
+            %     steer_vec(theta) * transmitted_signal(:,t)), 1:size(transmitted_signal,2)));
+            objective_to_maximise = @(theta) -real( sum( (received_signal' * steer_vec(theta)) .* transmitted_signal.' ) );
+
+            result = obj.parse_output(objective_to_maximise);
         end
         
         function result = ML_async(obj, s_t)

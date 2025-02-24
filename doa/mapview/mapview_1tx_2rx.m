@@ -8,6 +8,7 @@ TIME_INST_NUM = 150; % Number of time instances
 RESOLUTION = 0.1; % Angle resolution in degreetranslate to -lim to lim (symmetric)
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4; % Number of elements in the ULA
+OPT_GRID_DENSITY = 3;
 %% === Other configurations
 % rs=rng(2007); % initialize the random number generator to a specific seed value
 c = 299792458; % physconst('LightSpeed');
@@ -66,8 +67,9 @@ for rx_idx=1:RX_NUM
     y_awgn = channel.AWGN(y_ula, nPower);
 
     %% === DoA Estimation Algorithm
-    estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act);
-    aoa_rel_est(rx_idx) = estimator_angle.ML_sync(s_t).aoa_est;
+    ula = ULA(lambda, ELEMENT_NUM, element_spacing);
+    estimator = DoAEstimator(ula, sweeping_angle, 'opt', OPT_GRID_DENSITY, aoa_act(rx_idx));
+    aoa_rel_est(rx_idx) = estimator.ML_sync(y_awgn, s_t).aoa_est;
     rays_abs{rx_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx), ABS_ANGLE_LIM);
 end
 aoa_intersect = map2d.calDoAIntersect(rays_abs{1}, rays_abs{2});
