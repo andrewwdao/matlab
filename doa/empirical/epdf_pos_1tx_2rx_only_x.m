@@ -52,7 +52,7 @@ progressbar('reset', ITERATION); % Reset progress bar
 progressbar('displaymode', 'append'); % Reset progress bar
 progressbar('minimalupdateinterval', 1); % Update progress bar every x seconds
 rmse_values = zeros(ITERATION, 1);
-estimator_coor = PosEstimator2D();
+map2d = Map2D();
 % Initialize channel model
 channel = ChannelModels();
 for itr=1:ITERATION
@@ -71,10 +71,10 @@ for itr=1:ITERATION
         % result = estimator_angle.BF();
         % result = estimator_angle.MVDR();
         % result = estimator_angle.MUSIC();
-        rays_abs{rx_idx, 1} = estimator_coor.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, 1));
+        rays_abs{rx_idx, 1} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, 1));
     end
     % --- Calculate the aoa intersection point and the RMSE for each method
-    aoa_intersect = estimator_coor.calDoAIntersect(rays_abs{1, 1}, rays_abs{2, 1});
+    aoa_intersect = map2d.calDoAIntersect(rays_abs{1, 1}, rays_abs{2, 1});
     rmse_values(itr, 1) = round((pos_tx(1,1)-aoa_intersect.x), 0);
 end
 

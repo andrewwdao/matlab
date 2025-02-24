@@ -1,6 +1,6 @@
 %% mapview_with_visualisation.m
 % This script creates a figure with two subplots:
-% Left: 3D visualization of L(x,y) using Visualise3D.
+% Left: 3D visualization of L(x,y) using Map3D.
 % Right: Map view (Tx, Rx positions with connecting rays) similar to mapview_1tx_2rx.m.
 
 clear; clc; close all;
@@ -87,10 +87,10 @@ fprintf('%.2f  ', aoa_act); fprintf('\n');
 figure('Name', '3D ML Visualization and Map View', 'WindowState', 'maximized');
 % Left Subplot: 3D Visualization of ML Function
 subplot(1,2,1);
-ml3d = Visualise3D(X, Y, L);
-ml3d.plot3D(gca);
+map3d = Map3D(X, Y, L);
+map3d.plot(gca);
 % Right Subplot: Map View
 subplot(1,2,2); hold on;
-map2d = Visualise2DMap();
+map2d = Map2D();
 map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, false);
 

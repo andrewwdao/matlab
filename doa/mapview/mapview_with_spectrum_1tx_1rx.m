@@ -53,9 +53,9 @@ estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, elem
 % result = estimator_angle.BF();
 % result = estimator_angle.MVDR();
 result = estimator_angle.MUSIC();
-estimator_coor = PosEstimator2D();
+map2d = Map2D();
 rays_abs = cell(1, 1);
-rays_abs{1} = estimator_coor.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_ANGLE_LIM);
+rays_abs{1} = map2d.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_ANGLE_LIM);
 
 %% === Plotting
 % figure; hold on; grid on;

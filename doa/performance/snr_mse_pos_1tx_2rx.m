@@ -41,7 +41,7 @@ num_methods = numel(doa_est_methods);  % Automatically get number of methods fro
 rmse_values = zeros(n_param, num_methods);
 CRB_values = zeros(n_param, 1);
 % square_err = zeros(ITERATION, num_methods);
-estimator_coor = PosEstimator2D();
+map2d = Map2D();
 %% === Loop through each SNR value
 for snr_idx=1:n_param
     progressbar('advance'); % Update progress bar
@@ -93,10 +93,10 @@ for snr_idx=1:n_param
                 else
                     aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)().aoa_est;
                 end
-                rays_abs{rx_idx, method_idx} = estimator_coor.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, method_idx));
+                rays_abs{rx_idx, method_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, method_idx));
             end
             % --- Calculate the aoa intersection point and the RMSE for each method
-            aoa_intersect = estimator_coor.calDoAIntersect(rays_abs{1, method_idx}, rays_abs{2, method_idx});
+            aoa_intersect = map2d.calDoAIntersect(rays_abs{1, method_idx}, rays_abs{2, method_idx});
             rmse_values(snr_idx, method_idx) = rmse_values(snr_idx, method_idx) + sqrt((pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2);
         end
     end

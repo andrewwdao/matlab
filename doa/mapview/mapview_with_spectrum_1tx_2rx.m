@@ -53,7 +53,7 @@ num_methods = numel(doa_est_methods);  % Automatically get number of methods fro
 method_list = reshape(struct2cell(doa_est_methods), [], 1);
 estimator_results = cell(num_methods, tx_num);
 rays_abs = cell(tx_num, 1);
-estimator_coor = PosEstimator2D();
+map2d = Map2D();
 channel = ChannelModels();  % Initialize channel model
 for method_idx=1:num_methods
     for tx_idx = 1:tx_num
@@ -64,7 +64,7 @@ for method_idx=1:num_methods
         % Initialize DoA Estimator
         estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(tx_idx));
         estimator_results{method_idx, tx_idx} = estimator_angle.(doa_est_methods(method_idx).name)();
-        rays_abs{tx_idx} = estimator_coor.calAbsRays(pos_rx, pos_tx(tx_idx,:), 0, estimator_results{method_idx, tx_idx}.aoa_est, ABS_ANGLE_LIM);
+        rays_abs{tx_idx} = map2d.calAbsRays(pos_rx, pos_tx(tx_idx,:), 0, estimator_results{method_idx, tx_idx}.aoa_est, ABS_ANGLE_LIM);
     end
 end
 

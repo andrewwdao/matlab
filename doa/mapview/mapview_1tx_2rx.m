@@ -41,7 +41,7 @@ sweeping_angle = -90:RESOLUTION:90; % Angle range for finding the AoA
 %% === Loop through each RX
 aoa_rel_est = zeros(RX_NUM, 1);
 rays_abs = cell(RX_NUM, 1);
-estimator_coor = PosEstimator2D();
+map2d = Map2D();
 % Initialize channel model
 channel = ChannelModels();
 for rx_idx=1:RX_NUM
@@ -68,9 +68,9 @@ for rx_idx=1:RX_NUM
     %% === DoA Estimation Algorithm
     estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act);
     aoa_rel_est(rx_idx) = estimator_angle.ML_sync(s_t).aoa_est;
-    rays_abs{rx_idx} = estimator_coor.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx), ABS_ANGLE_LIM);
+    rays_abs{rx_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx), ABS_ANGLE_LIM);
 end
-aoa_intersect = estimator_coor.calDoAIntersect(rays_abs{1}, rays_abs{2});
+aoa_intersect = map2d.calDoAIntersect(rays_abs{1}, rays_abs{2});
 %% === Plotting
 fprintf('SNR (dB):\n')
 fprintf('%.0f  ', SNR_dB);

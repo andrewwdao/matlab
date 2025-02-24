@@ -1,4 +1,4 @@
-classdef Visualise3D < handle
+classdef Map3D < handle
     properties
         X  % Grid X values
         Y  % Grid Y values
@@ -6,7 +6,7 @@ classdef Visualise3D < handle
     end
     
     methods
-        function obj = Visualise3D(varargin)
+        function obj = Map3D(varargin)
             % Constructor: can take 1 or 3 arguments.
             % If 1 argument is provided, it's the ML matrix L and default X and Y grids are generated.
             % If 3 arguments are provided, they are X, Y, and L respectively.
@@ -24,7 +24,7 @@ classdef Visualise3D < handle
             end
         end
         
-        function plot3D(obj, ax)
+        function plot(obj, ax)
             % Plots the 3D ML function on the provided axes.
             if nargin < 2 || isempty(ax)
                 figure;

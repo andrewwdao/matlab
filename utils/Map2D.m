@@ -1,10 +1,10 @@
 
-classdef Visualise2DMap < handle
+classdef Map2D < handle
     properties
     end
     
     methods
-        function obj = Visualise2DMap(varargin)
+        function obj = Map2D(varargin)
         end
 
         function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits)
@@ -143,6 +143,23 @@ classdef Visualise2DMap < handle
                 lim_range = [-10000, 0]; % Second quadrant or fourth quadrant
             end
             ray_plot_lim = sort(slope * lim_range + pos_abs_rx(1), "ascend"); % Absolute ray limit from a relative x limit from 0 to 100
+        end
+
+        function result = calDoAIntersect(~, abs_ray1, abs_ray2)
+            % Calculate the intersection point of two lines in the 2D plane.
+            % 
+            % Inputs:
+            %    abs_ray1 - The first line in the 2D plane.
+            %    abs_ray2 - The second line in the 2D plane.
+            %
+            % Outputs:
+            %    result - The intersection point of the two lines.
+            %
+            % Other m-files required: None
+            % Subfunctions: None
+            % MAT-files required: None
+            result.x = (abs_ray2.doa_shift - abs_ray1.doa_shift) / (abs_ray1.doa_slope - abs_ray2.doa_slope);
+            result.y = abs_ray1.doa_slope * result.x + abs_ray1.doa_shift;
         end
     end
 end
