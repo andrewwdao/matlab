@@ -69,16 +69,16 @@ end
 
 nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
-[X, Y, L] = l4c.CalculateLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
+[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
 % Define the objective function to maximize
-objective_to_maximize = @(coor) -abs(l4c.fminconCalculateLikelihood(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model));
+objective_to_maximize = @(coor) -l4c.calLikelihood4fmincon(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
 
 % Set bounds
 lb = [0, 0];
 ub = [area_size, area_size];
 
 % Use MLoptimiser class to find the maximum likelihood estimate
-grid_points = 5; % Define a 5x5 coarse grid for initial guesses
+grid_points = 11; % Define a 5x5 coarse grid for initial guesses
 optimizer = gridOptimiser();
 [optCoord, L_peak] = optimizer.fmincon(objective_to_maximize, {}, lb, ub, grid_points);
 

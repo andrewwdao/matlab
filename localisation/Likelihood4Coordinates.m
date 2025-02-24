@@ -6,31 +6,25 @@ classdef Likelihood4Coordinates < handle
         function obj = Likelihood4Coordinates(varargin)
         end
 
-        function [X, Y, L] = CalculateLikelihood4Area(obj, area_size, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
+        function [X, Y, L] = calLikelihood4Area(obj, area_size, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
             % This script computes the Maximum Likelihood function L(x,y) based on the received signals at two receivers.
             %% Compute ML Function L(x,y)
             x = linspace(0, area_size, area_size+1);
             y = linspace(0, area_size, area_size+1);
             [X, Y] = meshgrid(x, y);
             
-            L = obj.calculateLikelihood(X, Y, pos_rx, rot_abs, received_signal_cell, el_num, nPower);
-            % % Calculate the angular components for each receiver using function f
-            % sin_theta1 = f(X, Y, pos_rx(1,1), pos_rx(1,2), rot_abs(1));
-            % sin_theta2 = f(X, Y, pos_rx(2,1), pos_rx(2,2), rot_abs(2));
-
-            % % Compute the likelihood function based on received signals and steering vectors
-            % L = calculateP(sin_theta1, sin_theta2, received_signal_cell, el_num, nPower);
+            L = obj.calLikelihoodFromCoors(X, Y, pos_rx, rot_abs, received_signal_cell, el_num, nPower);
         end
 
-        function L = fminconCalculateLikelihood(obj, coor, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
+        function L = calLikelihood4fmincon(obj, coor, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
             % This script computes the Maximum Likelihood function L(x,y) based on the received signals at two receivers.
             %% Compute ML Function L(x,y)
             x = coor(1);
             y = coor(2);
-            L = obj.calculateLikelihood(x, y, pos_rx, rot_abs, received_signal_cell, el_num, nPower);
+            L = obj.calLikelihoodFromCoors(x, y, pos_rx, rot_abs, received_signal_cell, el_num, nPower);
         end
 
-        function L = calculateLikelihood(obj, x, y, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
+        function L = calLikelihoodFromCoors(obj, x, y, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
             % This script computes the Maximum Likelihood function L(x,y) based on the received signals at two receivers.
             %% Compute ML Function L(x,y)
             % Calculate the angular components for each receiver using function f
@@ -38,7 +32,7 @@ classdef Likelihood4Coordinates < handle
             sin_theta2 = obj.coors2sin(x, y, pos_rx(2,1), pos_rx(2,2), rot_abs(2));
 
             % Compute the likelihood function based on received signals and steering vectors
-            L = obj.calculateP(sin_theta1, sin_theta2, received_signal_cell, el_num, nPower);
+            L = obj.calLikelihoodFromAngles(sin_theta1, sin_theta2, received_signal_cell, el_num, nPower);
         end
 
         %% ==================================== Local Functions
@@ -49,17 +43,17 @@ classdef Likelihood4Coordinates < handle
             sin_theta = sind(theta);
         end
 
-        function P = calculateP(obj, sin_theta1, sin_theta2, received_signal_cell, el_num, nPower)
+        function P = calLikelihoodFromAngles(obj, sin_theta1, sin_theta2, received_signal_cell, el_num, nPower)
             % Computes the likelihood function over the grid.
-            % Combine received signals into a vector.
+            % Step 1: Combine received signals into a vector.
             z = [received_signal_cell{1}.' received_signal_cell{2}.'].';
-            % Compute covariance matrices for each grid point.
+            % Step 2: Compute covariance matrices for each grid point.
             Sigma_z = obj.computeSigmaZ(sin_theta1, sin_theta2, nPower, el_num);
-            % Evaluate ML function at each grid point.
-            P = cell2mat(cellfun(@(Sig) 1/(pi^(2*el_num)*det(Sig)) * exp(-z.' / Sig * z), ...
-                Sigma_z, 'UniformOutput', false));
-            % P = cell2mat(cellfun(@(Sig) 1/(pi^(2*el_num)*det(Sig)) * exp(-z.' * (Sig\z)), ...
+            % Step 3: Evaluate the log Likelihood function at each point.
+            % P = cell2mat(cellfun(@(Sig) 1/(pi^(2*el_num)*det(Sig)) * exp(-z.' / Sig * z), ...
             %     Sigma_z, 'UniformOutput', false));
+            P = cell2mat(cellfun(@(Sig) real(-log(pi^(2*el_num)*det(Sig)) - (z.' / Sig * z)), ...
+                Sigma_z, 'UniformOutput', false));
         end
 
         function Sigma_z = computeSigmaZ(obj, sin_theta1, sin_theta2, nPower, el_num)

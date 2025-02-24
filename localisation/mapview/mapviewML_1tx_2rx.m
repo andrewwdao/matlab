@@ -68,7 +68,7 @@ end
 
 nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
-[X, Y, L] = l4c.CalculateLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
+[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
 
 %% === Plotting
 fprintf('SNR (dB):\n')

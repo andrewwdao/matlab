@@ -30,7 +30,7 @@ classdef Map3D < handle
                 figure;
                 ax = axes;
             end
-            surf(ax, obj.X, obj.Y, abs(obj.L));
+            surf(ax, obj.X, obj.Y, obj.L);
             xlabel(ax, 'x (m)');
             ylabel(ax, 'y (m)');
             zlabel(ax, 'L(x,y)');
