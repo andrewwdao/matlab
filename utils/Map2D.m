@@ -7,7 +7,7 @@ classdef Map2D < handle
         function obj = Map2D(varargin)
         end
 
-        function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits)
+        function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits, aoa_est)
 
             num_rx = size(pos_rx, 1);
             rays_abs = cell(num_rx, 1);
@@ -20,13 +20,11 @@ classdef Map2D < handle
             for rx_idx = 1:num_rx
                 % Calculate the absolute rays
                 rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_rx_abs(rx_idx), aoa_act(rx_idx), lim_angle);
-                % Plot the rays connecting the Tx and Rx
-                % fplot(@(x) rays_abs{rx_idx}.doa_slope*x + rays_abs{rx_idx}.doa_shift, rays_abs{rx_idx}.lim, 'r', 'LineWidth', 2); hold on;
                 % Draw connecting ray from Tx to Rx
                 plot([pos_tx(1), pos_rx(rx_idx,1)], [pos_tx(2), pos_rx(rx_idx,2)], 'g-', 'LineWidth', 2);
                 fplot(@(x) rays_abs{rx_idx}.centre_slope*x + rays_abs{rx_idx}.centre_shift, rays_abs{rx_idx}.lim, 'k--', 'LineWidth', 0.25); hold on;
                 % add the true aoa in the plot
-                text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-5, sprintf('AoA: %.2f°', aoa_act(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
+                text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-7.5, sprintf('AoA: %.2f°', aoa_act(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
                 % % Determine relative position (from Tx to Rx)
                 % delta = pos_rx(rx_idx,:) - pos_tx;
                 % if (delta(1) < 0 && delta(2) >= 0) || (delta(1) >= 0 && delta(2) >= 0)
@@ -53,6 +51,24 @@ classdef Map2D < handle
                     fplot(@(x) rays_abs{rx_idx}.cw_slope*x + rays_abs{rx_idx}.cw_shift, [rays_abs{rx_idx}.lim], 'k--', 'LineWidth', 0.25); hold on;
                     fplot(@(x) rays_abs{rx_idx}.ccw_slope*x + rays_abs{rx_idx}.ccw_shift, [rays_abs{rx_idx}.lim], 'k--', 'LineWidth', 0.25); hold on;
                 end
+            end
+
+            % --- Plot the Estimated AoA intersection rays and point
+            if nargin == 9
+                rays_est = cell(num_rx, 1);
+                % --- For each Rx
+                for rx_idx = 1:num_rx
+                    % Calculate the estimated rays
+                    rays_est{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_rx_abs(rx_idx), aoa_est(rx_idx));
+                    % Plot the intersection rays
+                    fplot(@(x) rays_est{rx_idx}.doa_slope*x + rays_est{rx_idx}.doa_shift, rays_est{rx_idx}.lim, 'r', 'LineWidth', 2); hold on;
+                    % add the true aoa in the plot
+                    text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-12.5, sprintf('Est. AoA: %.2f°', aoa_est(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
+                end
+                % Calculate the intersection point of the two rays
+                doa_intersect = obj.calDoAIntersect(rays_est{1}, rays_est{2});
+                % Plot the intersection point
+                plot(doa_intersect.x, doa_intersect.y, 'ko', 'MarkerSize', 8, 'LineWidth', 2); hold on;
             end
 
             % Other format settings
@@ -111,6 +127,7 @@ classdef Map2D < handle
             %    aoa_act = 30;
             abs_ray.doa_slope = tand(rot_abs_rx + aoa_act);
             abs_ray.doa_shift = pos_abs_rx(2) - abs_ray.doa_slope * pos_abs_rx(1);
+            abs_ray.lim = obj.calRayPlotLim(pos_abs_rx, pos_abs_tx, abs_ray.doa_slope);
             if nargin == 6
                 abs_ray.centre_slope = tand(rot_abs_rx);
                 abs_ray.centre_shift = pos_abs_rx(2) - abs_ray.centre_slope * pos_abs_rx(1);
@@ -118,7 +135,6 @@ classdef Map2D < handle
                 abs_ray.cw_shift = pos_abs_rx(2) - abs_ray.cw_slope * pos_abs_rx(1);
                 abs_ray.ccw_slope = tand(rot_abs_rx + rot_lim);
                 abs_ray.ccw_shift = pos_abs_rx(2) - abs_ray.ccw_slope * pos_abs_rx(1);
-                abs_ray.lim = obj.calRayPlotLim(pos_abs_rx, pos_abs_tx, abs_ray.doa_slope);
             end
         end
 

@@ -100,6 +100,6 @@ fprintf('\n');
 
 fprintf('DoA Intersection Point (x, y):\n  %.2f, %.2f\n', aoa_intersect.x, aoa_intersect.y);
 figure('Name', 'Map Visualisation'); clf; hold on;%, 'WindowState', 'maximized'); clf; hold on;
-vis_sync = MapVisual("ML Sync", pos_tx, pos_rx, area_size, ...
-    sweeping_angle, [], aoa_rel_est);
-vis_sync.plotMapOnly(area_size, pos_tx, pos_rx, rays_abs, aoa_intersect, SHOW_LIMITS);
+
+map2d = Map2D();
+map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, SHOW_LIMITS, aoa_rel_est);
