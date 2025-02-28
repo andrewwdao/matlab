@@ -21,7 +21,7 @@ classdef Map2D < handle
                 % Calculate the absolute rays
                 rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_rx_abs(rx_idx), aoa_act(rx_idx), lim_angle);
                 % Draw connecting ray from Tx to Rx
-                plot([pos_tx(1), pos_rx(rx_idx,1)], [pos_tx(2), pos_rx(rx_idx,2)], 'g-', 'LineWidth', 2);
+                plot([pos_tx(1), pos_rx(rx_idx,1)], [pos_tx(2), pos_rx(rx_idx,2)], 'Color', [0 0.5 0], 'LineWidth', 4);
                 fplot(@(x) rays_abs{rx_idx}.centre_slope*x + rays_abs{rx_idx}.centre_shift, rays_abs{rx_idx}.lim, 'k--', 'LineWidth', 0.25); hold on;
                 % add the true aoa in the plot
                 text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-7.5, sprintf('AoA: %.2f°', aoa_act(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
@@ -65,16 +65,83 @@ classdef Map2D < handle
                     % add the true aoa in the plot
                     text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-12.5, sprintf('Est. AoA: %.2f°', aoa_est(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
                 end
-                % Calculate the intersection point of the two rays
-                doa_intersect = obj.calDoAIntersect(rays_est{1}, rays_est{2});
-                % Plot the intersection point
-                plot(doa_intersect.x, doa_intersect.y, 'ko', 'MarkerSize', 8, 'LineWidth', 2); hold on;
+                if length(aoa_est) >= 2 % Only plot the intersection point if there are two rays
+                    % Calculate the intersection point of the two rays
+                    doa_intersect = obj.calDoAIntersect(rays_est{1}, rays_est{2});
+                    % Plot the intersection point
+                    plot(doa_intersect.x, doa_intersect.y, 'ko', 'MarkerSize', 8, 'LineWidth', 2); hold on;
+                end
             end
 
             % Other format settings
             xlabel('X Position (m)'); ylabel('Y Position (m)');
             xlim([0 area_size]); ylim([0 area_size]);
             title('Map Visualisation'); grid on; hold off;
+        end
+
+        function plotDetailed(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits, angle_array, powdb_cell, method_list, aoa_est)
+            figure('Name', 'Map and Spectrum Visualisation', 'WindowState', 'maximized'); clf; hold on;
+            subplot(2,2,1);
+            obj.plot(pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits, aoa_est);hold on;
+            subplot(2,2,[3,4]);
+            obj.plotSpectrum(angle_array, powdb_cell, method_list, aoa_est); hold on;
+            subplot(2,2,2);
+            obj.plotPolarSpectrum(angle_array, powdb_cell, method_list, aoa_est); hold off;
+        end
+
+        function plotSpectrum(obj, angle_array, powdb_cell, method_list, aoa_est)
+            method_num = size(powdb_cell, 1);
+            tx_num = size(powdb_cell, 2);
+            for method_idx = 1:method_num % only need to use the first spectrum as they would be the same for all
+                combinedSpectrum = zeros(size(angle_array));
+                for tx_idx = 1:tx_num
+                    combinedSpectrum = combinedSpectrum + powdb_cell{method_idx,tx_idx};
+                end
+                plot(angle_array, combinedSpectrum, 'LineWidth', 2); hold on;
+                % Add markers for the estimated AoA
+                if nargin == 5
+                    [est_pow, ~] = maxk(combinedSpectrum, tx_num); % Get the peaks to visualise the AoA on the spectrum plot 
+                    for i = 1:tx_num
+                        obj.addMarkers(aoa_est(i), est_pow(i), ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'red');
+                        % plot(aoa_est(i), est_pow(i), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
+                        % text(aoa_est(i)-5, (est_pow(i)+0.5).*1.15, ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
+                    end
+                end
+            end
+            xlabel('Angle (degrees)');
+            ylabel('Power (dB)');
+            legend(method_list, 'AutoUpdate', 'off');
+            title('Spatial Spectrum'); grid on; hold off;
+        end
+
+        function plotPolarSpectrum(obj, angle_array, powdb_cell, method_list, aoa_est)
+            method_num = size(powdb_cell, 1);
+            tx_num = size(powdb_cell, 2);
+            for method_idx = 1:method_num % only need to use the first spectrum as they would be the same for all
+                powdb_cell_normalised = cellfun(@(x) x - min(x), powdb_cell, 'UniformOutput', false); % Normalize the spectrum data
+                combinedSpectrum = zeros(size(angle_array));
+                for tx_idx = 1:tx_num
+                    combinedSpectrum = combinedSpectrum + powdb_cell_normalised{method_idx,tx_idx};
+                end
+                polarplot(deg2rad(angle_array), combinedSpectrum, '-', 'LineWidth', 2); hold on;
+                % Add markers for the estimated AoA
+                if nargin == 5
+                    [est_pow, ~] = maxk(combinedSpectrum, tx_num); % Get the peaks to visualise the AoA on the spectrum plot 
+                    for i = 1:tx_num
+                        obj.addPolarMarkers(aoa_est(i), est_pow(i), ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'red');
+                        % plot(aoa_est(i), est_pow(i), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
+                        % text(aoa_est(i)-5, (est_pow(i)+0.5).*1.15, ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
+                    end
+                end
+            end
+            ax = gca;
+            ax.RTickLabel = '';
+            ax.ThetaLim = [min(angle_array) max(angle_array)];
+            ax.ThetaTick = min(angle_array):15:max(angle_array);
+            ax.ThetaZeroLocation = 'right';  % 0 degrees at the right
+            ax.ThetaDir = 'counterclockwise';  % Counterclockwise direction
+            legend(method_list, 'AutoUpdate', 'off');
+            title('Spatial Spectrum (Polar)');
         end
 
         function addMarkers(~, x, y, text_str, color)
@@ -92,6 +159,11 @@ classdef Map2D < handle
             %   - 'hold on' is called to retain the current plot when adding new elements.
             plot(x, y, 'Marker', 'o', 'Color', color, 'MarkerSize', 10, 'LineWidth', 3, 'LineStyle', 'none'); hold on;
             text(x+1.5, y-2.5, text_str, 'Color', color, 'FontSize', 12); hold on;
+        end
+
+        function addPolarMarkers(~, angle, radius, text_str, color)
+            polarplot(deg2rad(angle), radius, 'Marker', 'o', 'Color', color, 'MarkerSize', 10, 'LineWidth', 3, 'LineStyle', 'none'); hold on;
+            text(deg2rad(angle), radius*1.3, text_str, 'Color', color, 'FontSize', 12); hold on;
         end
 
         function abs_ray = calAbsRays(obj, pos_abs_rx, pos_abs_tx, rot_abs_rx, aoa_act, rot_lim)

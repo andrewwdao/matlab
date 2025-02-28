@@ -3,25 +3,27 @@ classdef DoAEstimator < handle
         antenna_array       % Instance of AntennaArray (e.g., ULA)
         sweeping_angle      % Angle range for sweeping to find the AoA
         steer_vect          % Precomputed steering vectors for sweeping angles
-        estimation_mode = 'opt'  % Default mode: 'sweep', 'opt', or 'both'
+        estimation_mode = 'sweep'  % Default mode: 'sweep', 'opt', or 'both'
         grid_points = 10   % Number of grid points for optimization
         aoa_act             % Actual AoA for error calculation
     end
     
     methods
         % Constructor: Initialize with antenna array, sweeping angles, and optional estimation_mode
-        function obj = DoAEstimator(antenna_array, sweeping_angle, estimation_mode, grid_points, aoa_act)
+        function obj = DoAEstimator(antenna_array, sweeping_angle, aoa_act, estimation_mode, grid_points)
             % Inputs:
             %   antenna_array: Instance of AntennaArray (e.g., ULA)
             %   sweeping_angle: Array of angles for coarse grid search
             %   estimation_mode (optional): 'sweep', 'opt', or 'both'
-            if nargin >= 3
-                obj.estimation_mode = estimation_mode;
-                obj.grid_points = grid_points;
-                obj.aoa_act = aoa_act;
-            end
             obj.antenna_array = antenna_array;
             obj.sweeping_angle = sweeping_angle;
+            obj.aoa_act = aoa_act;
+            if nargin >= 4
+                obj.estimation_mode = estimation_mode;
+            end
+            if nargin >= 5
+                obj.grid_points = grid_points;
+            end
             if ~strcmp(obj.estimation_mode, 'opt')
                 % Precompute steering vectors for sweeping angles
                 obj.steer_vect = antenna_array.getSteeringVector(sweeping_angle(:));
@@ -56,6 +58,8 @@ classdef DoAEstimator < handle
         function result = applyOptimization(obj, objective)
             % Instantiate gridOptimiser
             optimiser = gridOptimiser();
+            % Objective function needs to be reversed for minimization
+            objective = @(angle) -objective(angle);
             % Global search over full angle range
             lb = -90; % Lower bound angle
             ub = 90; % Upper bound angle
@@ -87,7 +91,7 @@ classdef DoAEstimator < handle
             steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
             % objective_to_maximise = @(theta) sum(arrayfun(@(t) real(received_signal(:,t)' * ...
             %     steer_vec(theta) * transmitted_signal(:,t)), 1:size(transmitted_signal,2)));
-            objective_to_maximise = @(theta) -real( sum( (received_signal' * steer_vec(theta)) .* transmitted_signal.' ) );
+            objective_to_maximise = @(theta) real( sum( (received_signal' * steer_vec(theta)) .* transmitted_signal.' ) );
 
             result = obj.parse_output(objective_to_maximise);
         end

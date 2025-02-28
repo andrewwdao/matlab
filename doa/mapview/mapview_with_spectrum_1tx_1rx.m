@@ -1,6 +1,6 @@
 clear; clc; close all;
 %% === User inputs
-SNR_dB = 100; %dB
+SNR_dB = 10; %dB
 SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
 TIME_INST_NUM = 150; % Number of time instances
@@ -48,11 +48,12 @@ y_ula = channel.applyULA(y_los, aoa_act, ELEMENT_NUM, element_spacing, lambda); 
 y_awgn = channel.AWGN(y_ula, nPower);
 
 %% === DoA Estimation Algorithm
-estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act);
-% result = estimator_angle.ML_sync(s_t);
-% result = estimator_angle.BF();
-% result = estimator_angle.MVDR();
-result = estimator_angle.MUSIC();
+ula = ULA(lambda, ELEMENT_NUM, element_spacing);
+estimator = DoAEstimator(ula, sweeping_angle, aoa_act);
+result = estimator.ML_sync(y_awgn, s_t);
+% result = estimator.BF();
+% result = estimator.MVDR();
+% result = estimator.MUSIC();
 map2d = Map2D();
 rays_abs = cell(1, 1);
 rays_abs{1} = map2d.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_ANGLE_LIM);
@@ -62,9 +63,5 @@ rays_abs{1} = map2d.calAbsRays(pos_rx, pos_tx, 0, result.aoa_est, ABS_ANGLE_LIM)
 % plot(result_sync.spectrum_dB, 'LineWidth', 1, 'DisplayName', "Sync");
 % plot(result_bf.spectrum_dB, 'LineWidth', 1, 'DisplayName', "BF");
 % title("Spectrum"); legend("AutoUpdate","on");
-vis_sync = MapVisual(...
-    "MUSIC", pos_tx, pos_rx, area_size, ...
-    sweeping_angle, result.spectrum_dB, ...
-        result.aoa_est);
-vis_sync.plotSingle(rays_abs, SHOW_LIMITS);
 
+map2d.plotDetailed(pos_tx, pos_rx, 0, area_size, aoa_act, ABS_ANGLE_LIM, SHOW_LIMITS, sweeping_angle, {result.spectrum_dB}, "ML sync", result.aoa_est);

@@ -68,7 +68,7 @@ for rx_idx=1:RX_NUM
 
     %% === DoA Estimation Algorithm
     ula = ULA(lambda, ELEMENT_NUM, element_spacing);
-    estimator = DoAEstimator(ula, sweeping_angle, 'opt', OPT_GRID_DENSITY, aoa_act(rx_idx));
+    estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx), 'opt', OPT_GRID_DENSITY);
     aoa_rel_est(rx_idx) = estimator.ML_sync(y_awgn, s_t).aoa_est;
     rays_abs{rx_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx), ABS_ANGLE_LIM);
 end
