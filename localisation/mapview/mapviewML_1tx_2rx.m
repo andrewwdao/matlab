@@ -33,15 +33,17 @@ pos_tx = [50, 50];                  % Tx at center
 pos_rx = [21, 51; 51, 81]; % Two Rx positions
 aoa_act = [0; 0];            % True AoA from Rx to Tx
 
+SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
+SHOW_EXTRA = false; % Show extra information such as the AoA and the intersection point
 
-% Compute absolute angles from each Rx to Tx and corresponding rotations
+%% Compute absolute angles from each Rx to Tx and corresponding rotations
 angle_rx_tx_abs = zeros(RX_NUM, 1);
 for i = 1:RX_NUM
     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
 end
 rot_abs = angle_rx_tx_abs - aoa_act;
 
-% Signal and channel configurations
+%% Signal and channel configurations
 avg_amp_gain = 1;
 P_t = ones(RX_NUM, 1);
 sub_carrier = (1:RX_NUM)' * 1000;
@@ -51,7 +53,7 @@ t = 0:1/Fs:(T-1/Fs);
 element_spacing = 0.5 * lambda;
 sweeping_angle = -90:RESOLUTION:90;
 
-% For each Rx, generate received signal (only channel initialization is shown)
+%% For each Rx, generate received signal
 w = cell(RX_NUM, 1);
 % Initialize channel model
 channel = ChannelModels();
@@ -69,6 +71,20 @@ end
 nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
 [X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
+% Define the objective function to maximize
+objective_to_maximize = @(coor) -l4c.calLikelihood4fmincon(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower_model);
+
+% Set bounds
+lb = [0, 0];
+ub = [area_size, area_size];
+
+% Use MLoptimiser class to find the maximum likelihood estimate
+grid_points = 13; % Define a coarse grid for initial guesses
+optimiser = gridOptimiser();
+[optCoord, L_peak] = optimiser.fmincon2D(objective_to_maximize, {}, lb, ub, grid_points);
+
+% Print the result
+fprintf('Peak found at (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
 
 %% === Plotting
 fprintf('SNR (dB):\n')
@@ -92,5 +108,4 @@ map3d.plot(gca);
 % Right Subplot: Map View
 subplot(1,2,2); hold on;
 map2d = Map2D();
-map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, false);
-
+map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA]);

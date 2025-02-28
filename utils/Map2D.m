@@ -7,24 +7,22 @@ classdef Map2D < handle
         function obj = Map2D(varargin)
         end
 
-        function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits, aoa_est)
-
+        function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell)
             num_rx = size(pos_rx, 1);
+            num_tx = size(pos_tx, 1);
             rays_abs = cell(num_rx, 1);
-            % --- Plot the Tx and Rx positions
-            obj.addMarkers(pos_tx(:,1), pos_tx(:,2), 'Tx', 'red');
-            obj.addMarkers(pos_rx(:,1), pos_rx(:,2), 'Rx', 'blue');
-
-
             % --- For each Rx
             for rx_idx = 1:num_rx
-                % Calculate the absolute rays
-                rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_rx_abs(rx_idx), aoa_act(rx_idx), lim_angle);
-                % Draw connecting ray from Tx to Rx
-                plot([pos_tx(1), pos_rx(rx_idx,1)], [pos_tx(2), pos_rx(rx_idx,2)], 'Color', [0 0.5 0], 'LineWidth', 4);
-                fplot(@(x) rays_abs{rx_idx}.centre_slope*x + rays_abs{rx_idx}.centre_shift, rays_abs{rx_idx}.lim, 'k--', 'LineWidth', 0.25); hold on;
-                % add the true aoa in the plot
-                text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-7.5, sprintf('AoA: %.2f°', aoa_act(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
+                % --- Plot the Rx positions
+                obj.addMarkers(pos_rx(rx_idx,1), pos_rx(rx_idx,2), ['R',num2str(rx_idx)], 'blue');
+                for tx_idx = 1:num_tx
+                    % --- Plot the Tx positions
+                    obj.addMarkers(pos_tx(tx_idx,1), pos_tx(tx_idx,2), ['T',num2str(tx_idx)], 'k');
+                    % Calculate the absolute rays
+                    rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx(tx_idx,:), rot_rx_abs(rx_idx), aoa_act(rx_idx), lim_angle);
+                    % Draw connecting ray from Tx to Rx
+                    plot([pos_tx(tx_idx,1), pos_rx(rx_idx,1)], [pos_tx(tx_idx,2), pos_rx(rx_idx,2)], 'Color', [0 0.5 0], 'LineWidth', 4); hold on;
+                end
                 % % Determine relative position (from Tx to Rx)
                 % delta = pos_rx(rx_idx,:) - pos_tx;
                 % if (delta(1) < 0 && delta(2) >= 0) || (delta(1) >= 0 && delta(2) >= 0)
@@ -44,32 +42,59 @@ classdef Map2D < handle
                 % plot(arc_x, arc_y, 'm-', 'LineWidth', 2); 
                 % hold on;            
             end
-            
+
+            % --- Plot the Estimated AoA intersection rays and point
+            if nargin == 9
+                rays_est = cell(num_rx, num_tx);
+                num_method = size(aoa_est_cell, 1);
+                % --- For each method
+                for method_idx = 1:num_method
+                    % --- For each Tx
+                    for tx_idx = 1:num_tx
+                        % --- For each Rx
+                        for rx_idx = 1:num_rx % Calculate the estimated rays and plot the intersection rays
+                           % calculate the correct idx based on the number of Rx and Tx
+                            angle_idx = max(rx_idx * (num_rx > num_tx), tx_idx * (num_rx <= num_tx));
+                            rays_est{rx_idx, tx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx(tx_idx,:), rot_rx_abs(rx_idx), aoa_est_cell{method_idx, angle_idx});
+                            fplot(@(x) rays_est{rx_idx, tx_idx}.doa_slope*x + rays_est{rx_idx, tx_idx}.doa_shift, rays_est{rx_idx, tx_idx}.lim, 'r', 'LineWidth', 2); hold on;
+                        end
+                        
+                        % Only plot the intersection point if there are more than 1 Rx
+                        if num_rx > 1
+                            for rx_idx = 1:2:num_rx 
+                                % Calculate the intersection point of the two rays
+                                doa_intersect = obj.calDoAIntersect(rays_est{rx_idx, tx_idx}, rays_est{rx_idx+1, tx_idx});
+                                % Plot the intersection point
+                                plot(doa_intersect.x, doa_intersect.y, 'mo', 'MarkerSize', 8, 'LineWidth', 3); hold on;
+                            end
+                        end
+                    end
+                end
+            end
+
+            show_limits = flags(1);
+            show_extra = flags(2);
             % --- Plot the navigation rays
             if show_limits
                 for rx_idx = 1:num_rx
                     fplot(@(x) rays_abs{rx_idx}.cw_slope*x + rays_abs{rx_idx}.cw_shift, [rays_abs{rx_idx}.lim], 'k--', 'LineWidth', 0.25); hold on;
+                    fplot(@(x) rays_abs{rx_idx}.centre_slope*x + rays_abs{rx_idx}.centre_shift, rays_abs{rx_idx}.lim, 'k--', 'LineWidth', 0.25); hold on;
                     fplot(@(x) rays_abs{rx_idx}.ccw_slope*x + rays_abs{rx_idx}.ccw_shift, [rays_abs{rx_idx}.lim], 'k--', 'LineWidth', 0.25); hold on;
                 end
             end
 
-            % --- Plot the Estimated AoA intersection rays and point
-            if nargin == 9
-                rays_est = cell(num_rx, 1);
-                % --- For each Rx
-                for rx_idx = 1:num_rx
-                    % Calculate the estimated rays
-                    rays_est{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_rx_abs(rx_idx), aoa_est(rx_idx));
-                    % Plot the intersection rays
-                    fplot(@(x) rays_est{rx_idx}.doa_slope*x + rays_est{rx_idx}.doa_shift, rays_est{rx_idx}.lim, 'r', 'LineWidth', 2); hold on;
-                    % add the true aoa in the plot
-                    text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-12.5, sprintf('Est. AoA: %.2f°', aoa_est(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
+            if show_extra
+                % --- Plot the Tx positions
+                for tx_idx = 1:num_tx
+                    obj.addMarkers(pos_tx(tx_idx,1), pos_tx(tx_idx,2), ['T',num2str(tx_idx)], 'k');
                 end
-                if length(aoa_est) >= 2 % Only plot the intersection point if there are two rays
-                    % Calculate the intersection point of the two rays
-                    doa_intersect = obj.calDoAIntersect(rays_est{1}, rays_est{2});
-                    % Plot the intersection point
-                    plot(doa_intersect.x, doa_intersect.y, 'ko', 'MarkerSize', 8, 'LineWidth', 2); hold on;
+                % --- Plot the Rx positions
+                for rx_idx = 1:num_rx
+                    % add the true aoa in the plot
+                    text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-7.5, sprintf('AoA: %.2f°', aoa_act(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
+                    % add the estimated aoa in the plot
+                    text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-12.5, sprintf('Est. AoA: %.2f°', aoa_est_cell{1, rx_idx}), 'Color', 'blue', 'FontSize', 12); hold on;
+                
                 end
             end
 
@@ -79,58 +104,57 @@ classdef Map2D < handle
             title('Map Visualisation'); grid on; hold off;
         end
 
-        function plotDetailed(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits, angle_array, powdb_cell, method_list, aoa_est)
+        function plotDetailed(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, angle_array, powdb_cell, method_list, aoa_est_cell)
             figure('Name', 'Map and Spectrum Visualisation', 'WindowState', 'maximized'); clf; hold on;
             subplot(2,2,1);
-            obj.plot(pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, show_limits, aoa_est);hold on;
+            obj.plot(pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell);hold on;
             subplot(2,2,[3,4]);
-            obj.plotSpectrum(angle_array, powdb_cell, method_list, aoa_est); hold on;
+            obj.plotSpectrum(angle_array, powdb_cell, method_list); hold on;
             subplot(2,2,2);
-            obj.plotPolarSpectrum(angle_array, powdb_cell, method_list, aoa_est); hold off;
+            obj.plotPolarSpectrum(angle_array, powdb_cell, method_list); hold off;
         end
 
-        function plotSpectrum(obj, angle_array, powdb_cell, method_list, aoa_est)
+        function plotSpectrum(obj, angle_array, powdb_cell, method_list, aoa_est_cell)
             method_num = size(powdb_cell, 1);
             tx_num = size(powdb_cell, 2);
+            pl = gobjects(1, method_num);
             for method_idx = 1:method_num % only need to use the first spectrum as they would be the same for all
                 combinedSpectrum = zeros(size(angle_array));
+                % Get the combined spectrum first
                 for tx_idx = 1:tx_num
                     combinedSpectrum = combinedSpectrum + powdb_cell{method_idx,tx_idx};
                 end
-                plot(angle_array, combinedSpectrum, 'LineWidth', 2); hold on;
-                % Add markers for the estimated AoA
+                pl(method_idx) = plot(angle_array, combinedSpectrum, 'LineWidth', 2); hold on;
+                % Add markers for the estimated AoA if required
                 if nargin == 5
-                    [est_pow, ~] = maxk(combinedSpectrum, tx_num); % Get the peaks to visualise the AoA on the spectrum plot 
-                    for i = 1:tx_num
-                        obj.addMarkers(aoa_est(i), est_pow(i), ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'red');
-                        % plot(aoa_est(i), est_pow(i), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
-                        % text(aoa_est(i)-5, (est_pow(i)+0.5).*1.15, ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
+                    for tx_idx = 1: tx_num
+                        [est_pow, ~] = maxk(combinedSpectrum, tx_num); % Get the peaks to visualise the AoA on the spectrum plot 
+                        obj.addMarkers(aoa_est_cell{method_idx, tx_idx}, est_pow(tx_idx), ['DoA:', num2str(aoa_est_cell{method_idx, tx_idx}), '°; P:', num2str(est_pow(tx_idx)), 'dB'], 'red');
                     end
                 end
             end
             xlabel('Angle (degrees)');
             ylabel('Power (dB)');
-            legend(method_list, 'AutoUpdate', 'off');
+            legend(pl, method_list, 'AutoUpdate', 'off');
             title('Spatial Spectrum'); grid on; hold off;
         end
 
-        function plotPolarSpectrum(obj, angle_array, powdb_cell, method_list, aoa_est)
+        function plotPolarSpectrum(obj, angle_array, powdb_cell, method_list, aoa_est_cell)
             method_num = size(powdb_cell, 1);
             tx_num = size(powdb_cell, 2);
+            pl = gobjects(1, method_num);
             for method_idx = 1:method_num % only need to use the first spectrum as they would be the same for all
                 powdb_cell_normalised = cellfun(@(x) x - min(x), powdb_cell, 'UniformOutput', false); % Normalize the spectrum data
                 combinedSpectrum = zeros(size(angle_array));
                 for tx_idx = 1:tx_num
                     combinedSpectrum = combinedSpectrum + powdb_cell_normalised{method_idx,tx_idx};
                 end
-                polarplot(deg2rad(angle_array), combinedSpectrum, '-', 'LineWidth', 2); hold on;
-                % Add markers for the estimated AoA
+                pl(method_idx) = polarplot(deg2rad(angle_array), combinedSpectrum, '-', 'LineWidth', 2); hold on;
+                % Add markers for the estimated AoA if required
                 if nargin == 5
-                    [est_pow, ~] = maxk(combinedSpectrum, tx_num); % Get the peaks to visualise the AoA on the spectrum plot 
-                    for i = 1:tx_num
-                        obj.addPolarMarkers(aoa_est(i), est_pow(i), ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'red');
-                        % plot(aoa_est(i), est_pow(i), 'Marker', 'o', 'MarkerSize', 10, 'LineWidth', 2);
-                        % text(aoa_est(i)-5, (est_pow(i)+0.5).*1.15, ['DoA:', num2str(aoa_est(i)), '°; P:', num2str(est_pow(i)), 'dB'], 'LineWidth', 2);
+                    for tx_idx = 1: tx_num
+                        [est_pow, ~] = maxk(combinedSpectrum, tx_num); % Get the peaks to visualise the AoA on the spectrum plot 
+                        obj.addPolarMarkers(aoa_est_cell{method_idx, tx_idx}, est_pow(tx_idx), ['DoA:', num2str(aoa_est_cell{method_idx, tx_idx}), '°; P:', num2str(est_pow(tx_idx)), 'dB'], 'red');
                     end
                 end
             end
@@ -140,7 +164,7 @@ classdef Map2D < handle
             ax.ThetaTick = min(angle_array):15:max(angle_array);
             ax.ThetaZeroLocation = 'right';  % 0 degrees at the right
             ax.ThetaDir = 'counterclockwise';  % Counterclockwise direction
-            legend(method_list, 'AutoUpdate', 'off');
+            legend(pl, method_list, 'AutoUpdate', 'off');
             title('Spatial Spectrum (Polar)');
         end
 

@@ -1,14 +1,17 @@
 clear; clc; close all;
 %% === User inputs
 RX_NUM = 2; % Number of receivers
-SNR_dB = 100*ones(RX_NUM, 1); %dB
-SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
+SNR_dB = 0*ones(RX_NUM, 1); %dB
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
 TIME_INST_NUM = 150; % Number of time instances
 RESOLUTION = 0.1; % Angle resolution in degreetranslate to -lim to lim (symmetric)
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4; % Number of elements in the ULA
 OPT_GRID_DENSITY = 3;
+
+
+SHOW_LIMITS = false; % Show the detecting limits of the RXs (with known limitation)
+SHOW_EXTRA = true; % Show extra information such as the AoA and the intersection point
 %% === Other configurations
 % rs=rng(2007); % initialize the random number generator to a specific seed value
 c = 299792458; % physconst('LightSpeed');
@@ -102,4 +105,5 @@ fprintf('DoA Intersection Point (x, y):\n  %.2f, %.2f\n', aoa_intersect.x, aoa_i
 figure('Name', 'Map Visualisation'); clf; hold on;%, 'WindowState', 'maximized'); clf; hold on;
 
 map2d = Map2D();
-map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, SHOW_LIMITS, aoa_rel_est);
+aoa_est_cell = reshape(num2cell(aoa_rel_est), 1, []);
+map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA], aoa_est_cell);

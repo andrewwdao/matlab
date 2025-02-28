@@ -1,13 +1,15 @@
 clear; clc; close all;
 %% === User inputs
 SNR_dB = 20; %dB
-SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
 TIME_INST_NUM = 100; % Number of time instances
 aoa_act = [30, 35]; % True Angle of Arrival
 RESOLUTION = 0.1; % Angle resolution in degree
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 16; % Number of elements in the ULA
+
+SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
+SHOW_EXTRA = false; % Show extra information such as the AoA and the intersection point
 %% === Other configurations
 % rs=rng(2007); % initialize the random number generator to a specific seed value
 c = 299792458; % physconst('LightSpeed');
@@ -48,35 +50,27 @@ nPower = avg_E/db2pow(SNR_dB);
 %% === DoA Estimation Algorithm
 % Define the methods to test for performance
 doa_est_methods = struct(...
-    'name', {'MUSIC', 'MVDR', 'BF'});
-num_methods = numel(doa_est_methods);  % Automatically get number of methods from struct array
-method_list = reshape(struct2cell(doa_est_methods), [], 1);
-estimator_results = cell(num_methods, tx_num);
-rays_abs = cell(tx_num, 1);
+    'name', {'MUSIC', 'MVDR', 'BF'}, ...
+    'extra_args', {{tx_num}, {}, {}} ...
+);
+method_num = numel(doa_est_methods);  % Automatically get number of methods from struct array
+spectrum_cell = cell(method_num, tx_num);
+aoa_est_cell = cell(method_num, tx_num);
 map2d = Map2D();
 channel = ChannelModels();  % Initialize channel model
-for method_idx=1:num_methods
+for method_idx=1:method_num
     for tx_idx = 1:tx_num
         y_los = channel.LoS(s_t, avg_amp_gain);  % Received signal at the receiver
         y_ula = channel.applyULA(y_los, aoa_act(tx_idx), ELEMENT_NUM, element_spacing, lambda);  % Apply ULA characteristics to the received signal
-        % Calculate the energy of the whole signal transmitted to correct the noise power
         y_awgn = channel.AWGN(y_ula, nPower);
-        % Initialize DoA Estimator
-        estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(tx_idx));
-        estimator_results{method_idx, tx_idx} = estimator_angle.(doa_est_methods(method_idx).name)();
-        rays_abs{tx_idx} = map2d.calAbsRays(pos_rx, pos_tx(tx_idx,:), 0, estimator_results{method_idx, tx_idx}.aoa_est, ABS_ANGLE_LIM);
+        %% === DoA Estimation Algorithm
+        ula = ULA(lambda, ELEMENT_NUM, element_spacing);
+        estimator = DoAEstimator(ula, sweeping_angle, aoa_act(tx_idx));
+        result = estimator.(doa_est_methods(method_idx).name)(y_awgn, doa_est_methods(method_idx).extra_args{:});
+        spectrum_cell{method_idx, tx_idx} = result.spectrum_dB;
+        aoa_est_cell{method_idx, tx_idx} = result.aoa_est;
     end
 end
 
 %% === Plotting
-% figure; hold on; grid on;
-% plot(result_sync.spectrum_dB, 'LineWidth', 1, 'DisplayName', "Sync");
-% plot(result_bf.spectrum_dB, 'LineWidth', 1, 'DisplayName', "BF");
-% title("Spectrum"); legend("AutoUpdate","on");
-% vis_est_aoa = 
-vis_sync = MapVisual(...
-    doa_est_methods(1).name, pos_tx, pos_rx, area_size, ...
-    sweeping_angle, (estimator_results{1,1}.spectrum_dB+estimator_results{1,2}.spectrum_dB), ...
-        [estimator_results{1,1}.aoa_est estimator_results{1,2}.aoa_est]);
-% vis_sync.plotSingle(rays_abs, SHOW_LIMITS);
-vis_sync.plotMultiple(rays_abs, estimator_results, method_list);
+map2d.plotDetailed(pos_tx, pos_rx, 0, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA], sweeping_angle, spectrum_cell, {doa_est_methods.name}, aoa_est_cell);

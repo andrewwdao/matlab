@@ -84,150 +84,178 @@ classdef DoAEstimator < handle
             % Assume received signal: synchoronous signal with noise
             % Model: y = steering_vector*transmitted_signal + noise;
             % (know the transmitted symbols before channel and array effects)
-            % transmitted_signal: complex 1xT (1 TX)x(Number of samples)
-            % obj.received_signal: complex NxT (Number of elements)x(Number of samples)
-            % steering_vector: complex Nx1 (Number of elements)x1
-
+            %   transmitted_signal: complex 1xT (1 TX)x(Number of samples)
+            %   received_signal: complex NxT (Number of elements)x(Number of samples)
+            %   steer_vec: complex Nx1 (Number of elements)x1
             steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
-            % objective_to_maximise = @(theta) sum(arrayfun(@(t) real(received_signal(:,t)' * ...
-            %     steer_vec(theta) * transmitted_signal(:,t)), 1:size(transmitted_signal,2)));
-            objective_to_maximise = @(theta) real( sum( (received_signal' * steer_vec(theta)) .* transmitted_signal.' ) );
-
+            objective_to_maximise = @(theta) real(sum((received_signal' * steer_vec(theta)) .* transmitted_signal.'));
             result = obj.parse_output(objective_to_maximise);
         end
         
-        function result = ML_async(obj, s_t)
+        function result = ML_async(obj, received_signal)
             % Assume received signal: asynchoronous signal with noise
             % Model: y = steering_vector*exp(j\theta) + noise;
-            % (know the transmitted symbols before channel and array effects)
-            % s_t: complex 1xT (1 TX)x(Number of samples)
-            % obj.received_signal: complex NxT (Number of elements)x(Number of samples)
-            % steering_vector: complex Nx1 (Number of elements)x1
-            spectrum = zeros(size(obj.sweeping_angle));
-            steer_vect_local = obj.steer_vect;
-            received_signal_local = obj.received_signal;
-            parfor i = 1:length(obj.sweeping_angle)
-                for t = 1:size(s_t,2) % consider each time instance separately
-                    spectrum(i) = spectrum(i) + received_signal_local(:,t)' * steer_vect_local(:, i) * steer_vect_local(:, i)' * received_signal_local(:,t); %#ok<PFBNS>
-                end
-            end
-            % Parse the output to readable format
-            result = obj.parse_output('ASync ML', spectrum);
+            %   received_signal: complex NxT (Number of elements)x(Number of samples)
+            %   steer_vec: complex Nx1 (Number of elements)x1
+            steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
+            objective_to_maximise = @(theta) real(sum(received_signal' * steer_vec(theta) * steer_vec(theta)' * received_signal));
+            result = obj.parse_output(objective_to_maximise);
+
+            % spectrum = zeros(size(obj.sweeping_angle));
+            % steer_vect_local = obj.steer_vect;
+            % received_signal_local = obj.received_signal;
+            % parfor i = 1:length(obj.sweeping_angle)
+            %     for t = 1:size(s_t,2) % consider each time instance separately
+            %         spectrum(i) = spectrum(i) + received_signal_local(:,t)' * steer_vect_local(:, i) * steer_vect_local(:, i)' * received_signal_local(:,t); %#ok<PFBNS>
+            %     end
+            % end
+            % % Parse the output to readable format
+            % result = obj.parse_output('ASync ML', spectrum);
         end
 
-        function result = BF(obj)
+        function result = BF(obj, received_signal)
             % --- Conventional Beamforming Algorithm
             % Similar to the ML estimator for asynchoronous received signal:
             % y = steering_vector*exp(j\theta) + noise;
-            % --- Calculate the covariance matrix
-            R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
-            spectrum = zeros(size(obj.sweeping_angle));
-            steer_vect_local = obj.steer_vect;
-            parfor i = 1:length(obj.sweeping_angle)
-                % Form MVDR denominator matrix from noise subspace eigenvectors
-                spectrum(i) = steer_vect_local(:, i)' * R * steer_vect_local(:, i);  %steering_vector' * inv(R) * steering_vector;
-            end
-            % Parse the output to readable format
-            result = obj.parse_output('BF', spectrum);
+            steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
+            % Sample covariance matrix
+            R = received_signal * received_signal' / size(received_signal, 2); % y*y^H/N
+            objective_to_maximise = @(theta) steer_vec(theta)' * R * steer_vec(theta);
+            result = obj.parse_output(objective_to_maximise);
+            
+            % % --- Calculate the covariance matrix
+            % R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
+            % spectrum = zeros(size(obj.sweeping_angle));
+            % steer_vect_local = obj.steer_vect;
+            % parfor i = 1:length(obj.sweeping_angle)
+            %     % Form MVDR denominator matrix from noise subspace eigenvectors
+            %     spectrum(i) = steer_vect_local(:, i)' * R * steer_vect_local(:, i);  %steering_vector' * inv(R) * steering_vector;
+            % end
+            % % Parse the output to readable format
+            % result = obj.parse_output('BF', spectrum);
         end
         
-        function result = MVDR(obj)
+        function result = MVDR(obj, received_signal)
             % --- MVDR Algorithm - or Minimum Variance Distortionless Response - Maximum Likelihood
-            % --- Calculate the covariance matrix
-            R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
+            steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
+            % Sample covariance matrix
+            R = received_signal * received_signal' / size(received_signal, 2); % y*y^H/N
             % Add regularization to the covariance matrix (diagonal loading)
             if rcond(R) < 1e-15  % if R is a (near)singular matrix (non invertible)
                 R = R + eye(size(R));
             end
-            spectrum = zeros(size(obj.sweeping_angle));
-            steer_vect_local = obj.steer_vect;
-            parfor i = 1:length(obj.sweeping_angle)
-                % Form MVDR denominator matrix from noise subspace eigenvectors
-                denom = (steer_vect_local(:, i)' / R) * steer_vect_local(:, i); % steering_vector' * inv(R) * steering_vector;
-                spectrum(i) = 1 ./ denom;
-            end
-            % Parse the output to readable format
-            result = obj.parse_output('MVDR', spectrum);
+            denom = @(theta) steer_vec(theta)' / R * steer_vec(theta);
+            objective_to_maximise = @(theta) 1 ./ denom(theta);
+            result = obj.parse_output(objective_to_maximise);
+            % % --- Calculate the covariance matrix
+            % R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
+            % % Add regularization to the covariance matrix (diagonal loading)
+            % if rcond(R) < 1e-15  % if R is a (near)singular matrix (non invertible)
+            %     R = R + eye(size(R));
+            % end
+            % spectrum = zeros(size(obj.sweeping_angle));
+            % steer_vect_local = obj.steer_vect;
+            % parfor i = 1:length(obj.sweeping_angle)
+            %     % Form MVDR denominator matrix from noise subspace eigenvectors
+            %     denom = (steer_vect_local(:, i)' / R) * steer_vect_local(:, i); % steering_vector' * inv(R) * steering_vector;
+            %     spectrum(i) = 1 ./ denom;
+            % end
+            % % Parse the output to readable format
+            % result = obj.parse_output('MVDR', spectrum);
         end
 
-        function result = MUSIC(obj)
+        function result = MUSIC(obj, received_signal, tx_num)
             % --- MUSIC Algorithm
-            % --- Calculate the covariance matrix - sample correlation matrix
-            R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
+            steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
+            % Sample covariance matrix
+            R = received_signal * received_signal' / size(received_signal, 2); % y*y^H/N
             % Perform eigenvalue decomposition
             [eigenvectors, eigenvalues] = eig(R);
             % Sort eigenvalues and eigenvectors
             [~, idx] = sort(diag(eigenvalues), 'descend');
             eigenvectors = eigenvectors(:, idx); % short the largest eigenvectors to the largest eigenvalues first
             % Determine the noise subspace
-            noise_subspace = eigenvectors(:, obj.tx_num+1:end);
+            noise_subspace = eigenvectors(:, tx_num+1:end);
             % Compute the MUSIC spectrum
-            spectrum = zeros(size(obj.sweeping_angle));
-            steer_vect_local = obj.steer_vect;
-            parfor i = 1:length(obj.sweeping_angle)
-                % Form MUSIC denominator matrix from noise subspace eigenvectors
-                % another implementation for the denominator:
-                %(steering_vector' * (noise_subspace * noise_subspace') * steering_vector +eps(1));
-                denom = sum(abs(noise_subspace' * steer_vect_local(:, i)).^2, 1);
-                denom = denom+eps(1); % add a small positive constant to prevent division by zero. 9.44 in [1]
-                spectrum(i) = 1 ./ denom;
-            end
-            % Parse the output to readable format
-            result = obj.parse_output('MUSIC', spectrum);
+            denom = @(theta) sum(abs(noise_subspace' * steer_vec(theta)).^2, 1)+eps(1); % add a small positive constant to prevent division by zero. 9.44 in [1]
+            objective_to_maximise = @(theta) 1 ./ denom(theta);
+            result = obj.parse_output(objective_to_maximise);
+            % % --- Calculate the covariance matrix - sample correlation matrix
+            % R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
+            % % Perform eigenvalue decomposition
+            % [eigenvectors, eigenvalues] = eig(R);
+            % % Sort eigenvalues and eigenvectors
+            % [~, idx] = sort(diag(eigenvalues), 'descend');
+            % eigenvectors = eigenvectors(:, idx); % short the largest eigenvectors to the largest eigenvalues first
+            % % Determine the noise subspace
+            % noise_subspace = eigenvectors(:, obj.tx_num+1:end);
+            % % Compute the MUSIC spectrum
+            % spectrum = zeros(size(obj.sweeping_angle));
+            % steer_vect_local = obj.steer_vect;
+            % parfor i = 1:length(obj.sweeping_angle)
+            %     % Form MUSIC denominator matrix from noise subspace eigenvectors
+            %     % another implementation for the denominator:
+            %     %(steering_vector' * (noise_subspace * noise_subspace') * steering_vector +eps(1));
+            %     denom = sum(abs(noise_subspace' * steer_vect_local(:, i)).^2, 1);
+            %     denom = denom+eps(1); % add a small positive constant to prevent division by zero. 9.44 in [1]
+            %     spectrum(i) = 1 ./ denom;
+            % end
+            % % Parse the output to readable format
+            % result = obj.parse_output('MUSIC', spectrum);
         end
 
-        function result = MUSIC_op(obj)
-            % --- MUSIC Algorithm
-            % Calculate covariance matrix
-            R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2);
+        % function result = MUSIC_op(obj)
+        %     % --- MUSIC Algorithm
+        %     % Calculate covariance matrix
+        %     R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2);
             
-            % Eigenvalue decomposition
-            [eigenvectors, eigenvalues] = eig(R);
-            [~, idx] = sort(diag(eigenvalues), 'descend');
-            eigenvectors = eigenvectors(:, idx);
-            noise_subspace = eigenvectors(:, obj.tx_num+1:end);
+        %     % Eigenvalue decomposition
+        %     [eigenvectors, eigenvalues] = eig(R);
+        %     [~, idx] = sort(diag(eigenvalues), 'descend');
+        %     eigenvectors = eigenvectors(:, idx);
+        %     noise_subspace = eigenvectors(:, obj.tx_num+1:end);
             
-            % Array parameters
-            Nr = size(obj.received_signal, 1); % Number of elements
-            d = obj.element_spacing; % Element spacing (normalized by wavelength)
+        %     % Array parameters
+        %     Nr = size(obj.received_signal, 1); % Number of elements
+        %     d = obj.element_spacing; % Element spacing (normalized by wavelength)
             
-            % Step 1: Coarse grid search for initial guesses
-            coarse_angles = linspace(-90, 90, 37); % 5-degree resolution
-            coarse_spectrum = zeros(size(coarse_angles));
-            for i = 1:length(coarse_angles)
-                theta = coarse_angles(i);
-                steer_vec = exp(-1i * 2 * pi * d * (0:Nr-1)' * sind(theta));
-                denom = sum(abs(noise_subspace' * steer_vec).^2) + eps(1);
-                coarse_spectrum(i) = 1 / denom;
-            end
+        %     % Step 1: Coarse grid search for initial guesses
+        %     coarse_angles = linspace(-90, 90, 37); % 5-degree resolution
+        %     coarse_spectrum = zeros(size(coarse_angles));
+        %     for i = 1:length(coarse_angles)
+        %         theta = coarse_angles(i);
+        %         steer_vec = exp(-1i * 2 * pi * d * (0:Nr-1)' * sind(theta));
+        %         denom = sum(abs(noise_subspace' * steer_vec).^2) + eps(1);
+        %         coarse_spectrum(i) = 1 / denom;
+        %     end
             
-            % Find peaks in coarse spectrum
-            [~, peak_locs] = findpeaks(coarse_spectrum, 'SortStr', 'descend', 'NPeaks', obj.tx_num);
-            initial_guesses = coarse_angles(peak_locs);
+        %     % Find peaks in coarse spectrum
+        %     [~, peak_locs] = findpeaks(coarse_spectrum, 'SortStr', 'descend', 'NPeaks', obj.tx_num);
+        %     initial_guesses = coarse_angles(peak_locs);
             
-            % Step 2: Refine angles using optimization
-            optimized_angles = zeros(1, obj.tx_num);
-            options = optimoptions('fmincon', 'Display', 'off', 'Algorithm', 'interior-point');
+        %     % Step 2: Refine angles using optimization
+        %     optimized_angles = zeros(1, obj.tx_num);
+        %     options = optimoptions('fmincon', 'Display', 'off', 'Algorithm', 'interior-point');
             
-            % Objective function (minimize negative MUSIC spectrum)
-            music_obj = @(theta) -1/(sum(abs(noise_subspace' * ...
-                                  exp(-1i * 2 * pi * d * (0:Nr-1)' * sind(theta))).^2) + eps(1));
+        %     % Objective function (minimize negative MUSIC spectrum)
+        %     music_obj = @(theta) -1/(sum(abs(noise_subspace' * ...
+        %                           exp(-1i * 2 * pi * d * (0:Nr-1)' * sind(theta))).^2) + eps(1));
             
-            % Refine each initial guess
-            for k = 1:obj.tx_num
-                [theta_opt, ~] = fmincon(music_obj, initial_guesses(k), [], [], [], [], -90, 90, [], options);
-                optimized_angles(k) = theta_opt;
-            end
+        %     % Refine each initial guess
+        %     for k = 1:obj.tx_num
+        %         [theta_opt, ~] = fmincon(music_obj, initial_guesses(k), [], [], [], [], -90, 90, [], options);
+        %         optimized_angles(k) = theta_opt;
+        %     end
             
-            % Optional: Compute full spectrum for visualization
-            spectrum = zeros(size(obj.sweeping_angle));
-            for i = 1:length(obj.sweeping_angle)
-                denom = sum(abs(noise_subspace' * obj.steer_vect(:, i)).^2) + eps(1);
-                spectrum(i) = 1 / denom;
-            end
+        %     % Optional: Compute full spectrum for visualization
+        %     spectrum = zeros(size(obj.sweeping_angle));
+        %     for i = 1:length(obj.sweeping_angle)
+        %         denom = sum(abs(noise_subspace' * obj.steer_vect(:, i)).^2) + eps(1);
+        %         spectrum(i) = 1 / denom;
+        %     end
             
-            % Parse output with optimized angles
-            result = obj.parse_output('MUSIC', spectrum);
-        end
+        %     % Parse output with optimized angles
+        %     result = obj.parse_output('MUSIC', spectrum);
+        % end
     end
 end
