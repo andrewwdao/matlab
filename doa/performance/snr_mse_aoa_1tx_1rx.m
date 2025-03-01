@@ -14,13 +14,13 @@ fc = 2.4e9; % Operating frequency (Hz)
 lambda = c / fc; % Wavelength
 area_size = 100;   % 100x100 meter area
 rx_pos = [10, 50;]; % Receiver position (x, y) in meters
-tx_pos = [rx_pos(1) + 10*cosd(TRUE_ANGLE), rx_pos(2) + 10*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
-aoa_act = zeros(size(rx_pos, 1), size(tx_pos, 1));
-dist_act = zeros(size(rx_pos, 1), size(tx_pos, 1));
+pos_tx = [rx_pos(1) + 10*cosd(TRUE_ANGLE), rx_pos(2) + 10*sind(TRUE_ANGLE);]; % Transmitter position (x, y) in meters
+aoa_act = zeros(size(rx_pos, 1), size(pos_tx, 1));
+dist_act = zeros(size(rx_pos, 1), size(pos_tx, 1));
 for i = 1:size(rx_pos, 1)
-    for j = 1:size(tx_pos, 1)
-        aoa_act(i,j) = atan2d(tx_pos(j,2) - rx_pos(i,2), tx_pos(j,1) - rx_pos(i,1)); % AoA in degrees - atan(y_tx-y_rx/x_tx-x_rx)
-        dist_act = sqrt((tx_pos(j,1) - rx_pos(i,1))^2 + (tx_pos(j,2) - rx_pos(i,2))^2); % Euclidean distance between Tx and Rx - sqrt((x_tx-x_rx)^2 + (y_tx-y_rx)^2)
+    for j = 1:size(pos_tx, 1)
+        aoa_act(i,j) = atan2d(pos_tx(j,2) - rx_pos(i,2), pos_tx(j,1) - rx_pos(i,1)); % AoA in degrees - atan(y_tx-y_rx/x_tx-x_rx)
+        dist_act = sqrt((pos_tx(j,1) - rx_pos(i,1))^2 + (pos_tx(j,2) - rx_pos(i,2))^2); % Euclidean distance between Tx and Rx - sqrt((x_tx-x_rx)^2 + (y_tx-y_rx)^2)
     end
 end
 
@@ -30,8 +30,8 @@ progressbar('reset', n_param); % Reset progress bar
 progressbar('displaymode', 'append'); % Reset progress bar
 progressbar('minimalupdateinterval', 1); % Update progress bar every x seconds
 avg_amp_gain = 1; % Average gain of the channel
-P_t = ones(size(tx_pos));  % W - Transmit signal power
-sub_carrier = (1:size(tx_pos, 1))' * 1000;  % subcarrier spacing by 1000Hz
+P_t = ones(size(pos_tx));  % W - Transmit signal power
+sub_carrier = (1:size(pos_tx, 1))' * 1000;  % subcarrier spacing by 1000Hz
 Fs = 2 * max(sub_carrier);  % sample frequency
 T = TIME_INST_NUM/Fs; % period of transmission
 t = 0:1/Fs:(T-1/Fs);  % Time vector for the signal
@@ -40,8 +40,8 @@ element_spacing = 0.5 * lambda;  % Element spacing (ULA)
 sweeping_angle = (-90:0.1:90); % Angle range for finding the AoA
 %% === Define the methods to test for performance
 doa_est_methods = struct(...
-    'name', {'ML_sync', 'BF', 'MVDR', 'MUSIC'}, ...
-    'transmitted_signal_required', {true, false, false, false});
+    'name', {'ML_sync', 'MUSIC', 'BF', 'MVDR'} ... % extra args are defined later
+);
 num_methods = numel(doa_est_methods);  % Automatically get number of methods from struct array
 % Preallocate MSE arrays
 mse_values = zeros(n_param, num_methods);
@@ -53,9 +53,14 @@ CRB_Stoica_values = zeros(n_param, 1);
 for idx=1:n_param
     progressbar('advance'); % Update progress bar
     % Pre-calculate required values outside loop
-    tx_num = size(tx_pos, 1);
+    tx_num = size(pos_tx, 1);
     % Generate base signal
     s_t = sqrt(P_t(tx_num)) .* exp(1j * 2 * pi * sub_carrier(tx_num) * t);
+    %% ==== Define extra arguments for each method
+    doa_est_methods(1).extra_args = {s_t};  % For ML_sync
+    doa_est_methods(2).extra_args = {tx_num};  % For MUSIC
+    doa_est_methods(3).extra_args = {};        % For MVDR
+    doa_est_methods(4).extra_args = {};        % For BF
     % Initialize channel model
     channel = ChannelModels();
     % Calculate average energy of the signal
@@ -79,15 +84,11 @@ for idx=1:n_param
         y_los = channel.LoS(s_t, avg_amp_gain);
         y_ula = channel.applyULA(y_los, aoa_act, ELEMENT_NUM, element_spacing, lambda);
         y_awgn = channel.AWGN(y_ula, nPower);
-        % Create local estimator for this iteration
-        estimator = DoAEstimator(y_awgn, tx_num, lambda, ...
-            ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act);
+        %% === DoA Estimation Algorithm
+        ula = ULA(lambda, ELEMENT_NUM, element_spacing);
+        estimator = DoAEstimator(ula, sweeping_angle, aoa_act);
         for m = 1:num_methods
-            if doa_est_methods(m).transmitted_signal_required
-                result = estimator.(doa_est_methods(m).name)(s_t);
-            else
-                result = estimator.(doa_est_methods(m).name)();
-            end
+            result = estimator.(doa_est_methods(m).name)(y_awgn, doa_est_methods(m).extra_args{:});
             square_err(itr, m) = result.square_err;
         end
     end

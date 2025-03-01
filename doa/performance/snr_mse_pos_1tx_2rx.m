@@ -32,10 +32,8 @@ element_spacing = 0.5 * lambda;  % Element spacing (ULA)
 sweeping_angle = -90:RESOLUTION:90; % Angle range for finding the AoA
 %% === Define the methods to test for performance
 doa_est_methods = struct(...
-    'name', {'BF', 'MVDR', 'MUSIC'}, ...
-    'transmitted_signal_required', {false, false, false});
-    % 'name', {'ML_sync', 'BF'}, ..., 'MVDR', 'MUSIC'}, ...
-    % 'transmitted_signal_required', {true, false});%, false, false});
+    'name', {'ML_sync', 'MUSIC', 'BF', 'MVDR'} ... % extra args are defined later
+);
 num_methods = numel(doa_est_methods);  % Automatically get number of methods from struct array
 % Preallocate MSE arrays
 rmse_values = zeros(n_param, num_methods);
@@ -46,8 +44,14 @@ map2d = Map2D();
 for snr_idx=1:n_param
     progressbar('advance'); % Update progress bar
     % Pre-calculate required values outside loop
+    tx_num = size(pos_tx, 1);
     % Generate base signal
     s_t = sqrt(P_t(RX_NUM)) .* exp(1j * 2 * pi * sub_carrier(RX_NUM) * t);
+    %% ==== Define extra arguments for each method
+    doa_est_methods(1).extra_args = {s_t};  % For ML_sync
+    doa_est_methods(2).extra_args = {tx_num};  % For MUSIC
+    doa_est_methods(3).extra_args = {};        % For MVDR
+    doa_est_methods(4).extra_args = {};        % For BF
     % Calculate average energy of the signal
     if FIXED_TRANS_ENERGY == true
         % Average engery is fixed for whole transmission time
@@ -85,14 +89,11 @@ for snr_idx=1:n_param
                 y_los = channel.LoS(s_t, avg_amp_gain);
                 y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
                 y_awgn = channel.AWGN(y_ula, nPower);
-
-                estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ...
-                    ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(rx_idx));
-                if doa_est_methods(method_idx).transmitted_signal_required
-                    aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)(s_t).aoa_est;
-                else
-                    aoa_rel_est(rx_idx, method_idx) = estimator_angle.(doa_est_methods(method_idx).name)().aoa_est;
-                end
+                %% === DoA Estimation Algorithm
+                ula = ULA(lambda, ELEMENT_NUM, element_spacing);
+                estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx));
+                result = estimator.(doa_est_methods(method_idx).name)(y_awgn, doa_est_methods(method_idx).extra_args{:});
+                aoa_rel_est(rx_idx, method_idx) = result.aoa_est;
                 rays_abs{rx_idx, method_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, method_idx));
             end
             % --- Calculate the aoa intersection point and the RMSE for each method

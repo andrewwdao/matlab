@@ -8,27 +8,27 @@ classdef ChannelModels < handle
         end
 
 %% ------------------ Generic Utils -------------------
-    function logger(~, rx_pos, tx_pos, angles, purpose)
+    function logger(~, rx_pos, pos_tx, angles, purpose)
         disp('--------------------------------------------------------');
         disp(purpose);
         disp('--------------------------------------------------------');
         disp(array2table(...
             angles, ...% table data
             'RowNames', cellstr(strcat('RX', num2str((1:size(rx_pos, 1))'))), ...
-            'VariableNames', cellstr(strcat('TX', num2str((1:size(tx_pos, 1))')))));
+            'VariableNames', cellstr(strcat('TX', num2str((1:size(pos_tx, 1))')))));
     end
 
 %% ------------------ Position Characteristics -------------------
-    function [aoa_act, dist_act] = calculate_true_AoA_and_dist(~, rx_pos, tx_pos)
-        aoa_act = zeros(size(rx_pos, 1), size(tx_pos, 1));
-        dist_act = zeros(size(rx_pos, 1), size(tx_pos, 1));
+    function [aoa_act, dist_act] = calculate_true_AoA_and_dist(~, rx_pos, pos_tx)
+        aoa_act = zeros(size(rx_pos, 1), size(pos_tx, 1));
+        dist_act = zeros(size(rx_pos, 1), size(pos_tx, 1));
         for i = 1:size(rx_pos, 1)
-            for j = 1:size(tx_pos, 1)
-                aoa_act(i,j) = atan2d(tx_pos(j,2) - rx_pos(i,2), tx_pos(j,1) - rx_pos(i,1)); % AoA in degrees - atan(y_tx-y_rx/x_tx-x_rx)
-                dist_act = sqrt((tx_pos(j,1) - rx_pos(i,1))^2 + (tx_pos(j,2) - rx_pos(i,2))^2); % Euclidean distance between Tx and Rx - sqrt((x_tx-x_rx)^2 + (y_tx-y_rx)^2)
+            for j = 1:size(pos_tx, 1)
+                aoa_act(i,j) = atan2d(pos_tx(j,2) - rx_pos(i,2), pos_tx(j,1) - rx_pos(i,1)); % AoA in degrees - atan(y_tx-y_rx/x_tx-x_rx)
+                dist_act = sqrt((pos_tx(j,1) - rx_pos(i,1))^2 + (pos_tx(j,2) - rx_pos(i,2))^2); % Euclidean distance between Tx and Rx - sqrt((x_tx-x_rx)^2 + (y_tx-y_rx)^2)
             end
         end
-        % obj.logger(rx_pos, tx_pos, [aoa_act, dist_act], 'True Angles of Arrival with Absolute Distance');
+        % obj.logger(rx_pos, pos_tx, [aoa_act, dist_act], 'True Angles of Arrival with Absolute Distance');
     end
  %% ---------------------- Channel Characteristics -----------------------       
         function corrupted_output = AWGN(~, input, sigma_n2)

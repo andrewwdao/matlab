@@ -67,11 +67,13 @@ for itr=1:ITERATION
         y_awgn = channel.AWGN(y_ula, nPower);
 
         %% === DoA Estimation Algorithm
-        estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act(rx_idx));
-        aoa_rel_est(rx_idx, 1) = estimator_angle.ML_sync(s_t).aoa_est;
-        % result = estimator_angle.BF();
-        % result = estimator_angle.MVDR();
-        % result = estimator_angle.MUSIC();
+        ula = ULA(lambda, ELEMENT_NUM, element_spacing);
+        estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx));
+        % result = estimator.ML_sync(y_awgn, s_t);
+        result = estimator.BF(y_awgn);
+        % result = estimator.MVDR(y_awgn);
+        % result = estimator.MUSIC(y_awgn, length(pos_tx));
+        aoa_rel_est(rx_idx, 1) = result.aoa_est;
         rays_abs{rx_idx, 1} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, 1));
     end
     % --- Calculate the aoa intersection point and the RMSE for each method

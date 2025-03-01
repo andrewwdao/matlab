@@ -51,11 +51,13 @@ parfor itr=1:ITERATION
     y_awgn = channel.AWGN(y_ula, nPower);
 
     %% === DoA Estimation Algorithm
-    estimator_angle = DoAEstimator(y_awgn, size(pos_tx,1), lambda, ELEMENT_NUM, element_spacing, sweeping_angle, aoa_act);
-    est_aoas(itr) = estimator_angle.ML_sync(s_t).aoa_est;
-    % result = estimator_angle.BF();
-    % result = estimator_angle.MVDR();
-    % result = estimator_angle.MUSIC();
+    ula = ULA(lambda, ELEMENT_NUM, element_spacing);
+    estimator = DoAEstimator(ula, sweeping_angle, aoa_act);
+    % result = estimator.ML_sync(y_awgn, s_t);
+    result = estimator.BF(y_awgn);
+    % result = estimator.MVDR(y_awgn);
+    % result = estimator.MUSIC(y_awgn, length(pos_tx));
+    est_aoas(itr) = result.aoa_est;
 end
 
 %% === Calculate statistics
