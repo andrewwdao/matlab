@@ -100,17 +100,6 @@ classdef DoAEstimator < handle
             steer_vec = @(theta) obj.antenna_array.getSteeringVector(theta);
             objective_to_maximise = @(theta) real(sum(received_signal' * steer_vec(theta) * steer_vec(theta)' * received_signal));
             result = obj.parse_output(objective_to_maximise);
-
-            % spectrum = zeros(size(obj.sweeping_angle));
-            % steer_vect_local = obj.steer_vect;
-            % received_signal_local = obj.received_signal;
-            % parfor i = 1:length(obj.sweeping_angle)
-            %     for t = 1:size(s_t,2) % consider each time instance separately
-            %         spectrum(i) = spectrum(i) + received_signal_local(:,t)' * steer_vect_local(:, i) * steer_vect_local(:, i)' * received_signal_local(:,t); %#ok<PFBNS>
-            %     end
-            % end
-            % % Parse the output to readable format
-            % result = obj.parse_output('ASync ML', spectrum);
         end
 
         function result = BF(obj, received_signal)
@@ -122,17 +111,6 @@ classdef DoAEstimator < handle
             R = received_signal * received_signal' / size(received_signal, 2); % y*y^H/N
             objective_to_maximise = @(theta) steer_vec(theta)' * R * steer_vec(theta);
             result = obj.parse_output(objective_to_maximise);
-            
-            % % --- Calculate the covariance matrix
-            % R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
-            % spectrum = zeros(size(obj.sweeping_angle));
-            % steer_vect_local = obj.steer_vect;
-            % parfor i = 1:length(obj.sweeping_angle)
-            %     % Form MVDR denominator matrix from noise subspace eigenvectors
-            %     spectrum(i) = steer_vect_local(:, i)' * R * steer_vect_local(:, i);  %steering_vector' * inv(R) * steering_vector;
-            % end
-            % % Parse the output to readable format
-            % result = obj.parse_output('BF', spectrum);
         end
         
         function result = MVDR(obj, received_signal)
@@ -147,21 +125,6 @@ classdef DoAEstimator < handle
             denom = @(theta) steer_vec(theta)' / R * steer_vec(theta);
             objective_to_maximise = @(theta) 1 ./ denom(theta);
             result = obj.parse_output(objective_to_maximise);
-            % % --- Calculate the covariance matrix
-            % R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
-            % % Add regularization to the covariance matrix (diagonal loading)
-            % if rcond(R) < 1e-15  % if R is a (near)singular matrix (non invertible)
-            %     R = R + eye(size(R));
-            % end
-            % spectrum = zeros(size(obj.sweeping_angle));
-            % steer_vect_local = obj.steer_vect;
-            % parfor i = 1:length(obj.sweeping_angle)
-            %     % Form MVDR denominator matrix from noise subspace eigenvectors
-            %     denom = (steer_vect_local(:, i)' / R) * steer_vect_local(:, i); % steering_vector' * inv(R) * steering_vector;
-            %     spectrum(i) = 1 ./ denom;
-            % end
-            % % Parse the output to readable format
-            % result = obj.parse_output('MVDR', spectrum);
         end
 
         function result = MUSIC(obj, received_signal, tx_num)
@@ -180,28 +143,6 @@ classdef DoAEstimator < handle
             denom = @(theta) sum(abs(noise_subspace' * steer_vec(theta)).^2, 1)+eps(1); % add a small positive constant to prevent division by zero. 9.44 in [1]
             objective_to_maximise = @(theta) 1 ./ denom(theta);
             result = obj.parse_output(objective_to_maximise);
-            % % --- Calculate the covariance matrix - sample correlation matrix
-            % R = obj.received_signal * obj.received_signal' / size(obj.received_signal, 2); % y*y^H/N
-            % % Perform eigenvalue decomposition
-            % [eigenvectors, eigenvalues] = eig(R);
-            % % Sort eigenvalues and eigenvectors
-            % [~, idx] = sort(diag(eigenvalues), 'descend');
-            % eigenvectors = eigenvectors(:, idx); % short the largest eigenvectors to the largest eigenvalues first
-            % % Determine the noise subspace
-            % noise_subspace = eigenvectors(:, obj.tx_num+1:end);
-            % % Compute the MUSIC spectrum
-            % spectrum = zeros(size(obj.sweeping_angle));
-            % steer_vect_local = obj.steer_vect;
-            % parfor i = 1:length(obj.sweeping_angle)
-            %     % Form MUSIC denominator matrix from noise subspace eigenvectors
-            %     % another implementation for the denominator:
-            %     %(steering_vector' * (noise_subspace * noise_subspace') * steering_vector +eps(1));
-            %     denom = sum(abs(noise_subspace' * steer_vect_local(:, i)).^2, 1);
-            %     denom = denom+eps(1); % add a small positive constant to prevent division by zero. 9.44 in [1]
-            %     spectrum(i) = 1 ./ denom;
-            % end
-            % % Parse the output to readable format
-            % result = obj.parse_output('MUSIC', spectrum);
         end
 
         % function result = MUSIC_op(obj)

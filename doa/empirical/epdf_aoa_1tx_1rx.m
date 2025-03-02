@@ -1,6 +1,6 @@
 clear; clc; close all;
 %% === User inputs
-ITERATION = 100; % Number of Monte Carlo iterations
+ITERATION = 1000; % Number of Monte Carlo iterations
 SNR_dB = -30; %dB
 ABS_ANGLE_LIM = 60; % Absolute angle limit in degree
 TIME_INST_NUM = 150; % Number of time instances
@@ -8,6 +8,8 @@ aoa_act = 30; % True Angle of Arrival
 RESOLUTION = 0.1; % Angle resolution in degree
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4; % Number of elements in the ULA
+OPT_GRID_DENSITY = 3;
+
 %% === Other configurations
 % rs=rng(2007); % initialize the random number generator to a specific seed value
 c = 299792458; % physconst('LightSpeed');
@@ -52,9 +54,9 @@ parfor itr=1:ITERATION
 
     %% === DoA Estimation Algorithm
     ula = ULA(lambda, ELEMENT_NUM, element_spacing);
-    estimator = DoAEstimator(ula, sweeping_angle, aoa_act);
-    % result = estimator.ML_sync(y_awgn, s_t);
-    result = estimator.BF(y_awgn);
+    estimator = DoAEstimator(ula, sweeping_angle, aoa_act, 'opt', OPT_GRID_DENSITY);
+    result = estimator.ML_sync(y_awgn, s_t);
+    % result = estimator.BF(y_awgn);
     % result = estimator.MVDR(y_awgn);
     % result = estimator.MUSIC(y_awgn, length(pos_tx));
     est_aoas(itr) = result.aoa_est;

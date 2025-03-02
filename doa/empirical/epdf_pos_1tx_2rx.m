@@ -8,6 +8,8 @@ TRUE_ANGLE = 30; % True Angle of Arrival
 RESOLUTION = 0.1; % Angle resolution in degree
 FIXED_TRANS_ENERGY = true; % Flag to use Average SNR over all time instances or SNR over ONE time instance
 ELEMENT_NUM = 4; % Number of elements in the ULA
+OPT_GRID_DENSITY = 3;
+
 %% === Other configurations
 % rs=rng(2007); % initialize the random number generator to a specific seed value
 c = 299792458; % physconst('LightSpeed');
@@ -68,9 +70,9 @@ for itr=1:ITERATION
 
         %% === DoA Estimation Algorithm
         ula = ULA(lambda, ELEMENT_NUM, element_spacing);
-        estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx));
-        % result = estimator.ML_sync(y_awgn, s_t);
-        result = estimator.BF(y_awgn);
+        estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx), 'opt', OPT_GRID_DENSITY);
+        result = estimator.ML_async(y_awgn, s_t);
+        % result = estimator.BF(y_awgn);
         % result = estimator.MVDR(y_awgn);
         % result = estimator.MUSIC(y_awgn, length(pos_tx));
         aoa_rel_est(rx_idx, 1) = result.aoa_est;

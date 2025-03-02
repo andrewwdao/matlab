@@ -47,7 +47,7 @@ classdef gridOptimiser < handle
                     
                     % If test_val is finite, run fmincon
                     [opt_coor, fval] = fmincon(objective_for_fmincon, angle0, [], [], [], [], lb, ub, [], options);
-                    fprintf('Initial point %.2f converged to %.2f with value %.4f.\n', angle0, opt_coor, fval);
+                    % fprintf('Initial point %.2f converged to %.2f with value %.4f.\n', angle0, opt_coor, fval);
                     
                     % Update best solution if better
                     if fval < opt_val
