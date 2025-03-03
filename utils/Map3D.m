@@ -37,7 +37,7 @@ classdef Map3D < handle
             title(ax, '3D Visualization of L(x,y) = P(\theta_1, \theta_2)');
             shading(ax, 'interp'); % Improves plot appearance
             colorbar(ax); % Shows color scale
-            view(ax, 30, 30);
+            view(ax, 0, 90); % Top-down view (looking directly down at the xy-plane)
         end
         
         function updateVisualization(obj, newX, newY, newL)

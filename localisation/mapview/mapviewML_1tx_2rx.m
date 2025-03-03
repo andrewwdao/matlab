@@ -7,7 +7,7 @@ clear; clc; close all;
 
 %% User Inputs and Configurations
 RX_NUM = 2;                         % Number of receivers
-SNR_dB = 0 * ones(RX_NUM, 1);       % SNR in dB
+SNR_dB = 10 * ones(RX_NUM, 1);       % SNR in dB
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
@@ -30,11 +30,23 @@ pos_tx = [50, 50];                  % Tx at center
 % aoa_act = [-6.8; 45.6];            % True AoA from Rx to Tx
 % aoa_act = [-1.1; -5.4];
 % --- Fixed rx and aoa - optimal scenario
-pos_rx = [21, 51; 51, 81]; % Two Rx positions
+% pos_rx = [21, 51; 21, 60]; % 1
+% pos_rx = [21, 51; 30, 70]; % 2
+% pos_rx = [21, 51; 40, 70]; % 3
+% pos_rx = [21, 51; 50, 70]; % 4
+% pos_rx = [21, 51; 60, 70]; % 5
+% pos_rx = [21, 51; 70, 60]; % 6
+% pos_rx = [21, 51; 70, 50]; % 7
+% pos_rx = [21, 51; 70, 40]; % 8
+% pos_rx = [21, 51; 60, 30]; % 9
+% pos_rx = [21, 51; 50, 30]; % 10
+% pos_rx = [21, 51; 40, 30]; % 11
+% pos_rx = [21, 51; 30, 30]; % 12
+pos_rx = [21, 51; 20, 40]; % 13
 aoa_act = [0; 0];            % True AoA from Rx to Tx
 
-SHOW_LIMITS = true; % Show the detecting limits of the RXs (with known limitation)
-SHOW_EXTRA = false; % Show extra information such as the AoA and the intersection point
+SHOW_LIMITS = false; % Show the detecting limits of the RXs (with known limitation)
+SHOW_EXTRA = true; % Show extra information such as the AoA and the intersection point
 
 %% Compute absolute angles from each Rx to Tx and corresponding rotations
 angle_rx_tx_abs = zeros(RX_NUM, 1);

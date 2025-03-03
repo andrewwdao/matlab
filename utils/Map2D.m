@@ -91,10 +91,11 @@ classdef Map2D < handle
                 % --- Plot the Rx positions
                 for rx_idx = 1:num_rx
                     % add the true aoa in the plot
-                    text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-7.5, sprintf('AoA: %.2f°', aoa_act(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
-                    % add the estimated aoa in the plot
-                    text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-12.5, sprintf('Est. AoA: %.2f°', aoa_est_cell{1, rx_idx}), 'Color', 'blue', 'FontSize', 12); hold on;
-                
+                    text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-4.5, sprintf('AoA: %.2f°', aoa_act(rx_idx)), 'Color', 'blue', 'FontSize', 12); hold on;
+                    % add the estimated aoa in the plot if available
+                    if nargin == 9
+                        text(pos_rx(rx_idx,1)+1.5, pos_rx(rx_idx,2)-12.5, sprintf('Est. AoA: %.2f°', aoa_est_cell{1, rx_idx}), 'Color', 'blue', 'FontSize', 12); hold on;
+                    end              
                 end
             end
 
