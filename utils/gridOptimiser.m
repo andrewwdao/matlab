@@ -3,7 +3,6 @@ classdef gridOptimiser < handle
     properties
     end
     
-    % Methods of the class
     methods
         % Constructor to initialize the object
         function obj = gridOptimiser(varargin)
