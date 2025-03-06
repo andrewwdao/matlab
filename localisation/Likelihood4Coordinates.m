@@ -47,50 +47,60 @@ classdef Likelihood4Coordinates < handle
 
         %% ==================================== Local Functions
         function P = likelihoodFromAngles(obj, sin_theta1, sin_theta2, gamma1, gamma2, received_signal_cell, el_num, nPower)
-            % Computes the likelihood function over the grid.
-            % Step 1: Combine received signals into a vector.
-            z = [received_signal_cell{1}.' received_signal_cell{2}.'].';
-            % Step 2: Compute covariance matrices for each grid point.
-            Sigma_z = obj.computeSigmaZ(sin_theta1, sin_theta2, gamma1, gamma2, nPower, el_num);
-            % Step 3: Evaluate the log Likelihood function at each point.
+            % Handle multiple time instances by averaging log-likelihood
+            P_total = zeros(size(sin_theta1));
+            time_samples = size(received_signal_cell{1}, 2);
             
-            % Use try-catch for each matrix to handle singularity issues
-            P = zeros(size(Sigma_z));
-            for i = 1:numel(Sigma_z)
-                try
-                    % Compute log determinant in a numerically stable way
-                    [L, flag] = chol(Sigma_z{i});
-                    if flag == 0
-                        % Cholesky decomposition succeeded
-                        logdet = 2*sum(log(diag(L)));
-                        % Compute quadratic form using backslash
-                        quadratic_form = z' * (Sigma_z{i} \ z);
-                    else
-                        % Matrix not positive definite, use a fallback
-                        [U, S, ~] = svd(Sigma_z{i});
-                        s = diag(S);
-                        % Filter out very small eigenvalues for pseudo-inverse
-                        tol = max(size(Sigma_z{i})) * eps(max(s));
-                        r = sum(s > tol);
-                        if r < length(s)
-                            % Use pseudo-inverse for likelihood calculation
-                            Sigma_inv = U(:,1:r) * diag(1./s(1:r)) * U(:,1:r)';
-                            logdet = sum(log(s(1:r)));
-                            % Compute quadratic form using explicit multiplication
-                            quadratic_form = z' * Sigma_inv * z;
+            for t = 1:time_samples
+                % Get signal at current time sample
+                z_t = [received_signal_cell{1}(:,t).' received_signal_cell{2}(:,t).'].';
+                
+                % Compute covariance matrices
+                Sigma_z = obj.computeSigmaZ(sin_theta1, sin_theta2, gamma1, gamma2, nPower, el_num);
+                
+                % Evaluate likelihood for this time sample
+                P_t = zeros(size(Sigma_z));
+                for i = 1:numel(Sigma_z)
+                    try
+                        [L, flag] = chol(Sigma_z{i});
+                        if flag == 0
+                            % Cholesky decomposition succeeded
+                            logdet = 2*sum(log(diag(L)));
+                            % Compute quadratic form using backslash
+                            quadratic_form = z_t' * (Sigma_z{i} \ z_t);
                         else
-                            P(i) = -inf; % Mark as an impossible location
-                            continue;
+                            % Matrix not positive definite, use a fallback
+                            [U, S, ~] = svd(Sigma_z{i});
+                            s = diag(S);
+                            % Filter out very small eigenvalues for pseudo-inverse
+                            tol = max(size(Sigma_z{i})) * eps(max(s));
+                            r = sum(s > tol);
+                            if r < length(s)
+                                % Use pseudo-inverse for likelihood calculation
+                                Sigma_inv = U(:,1:r) * diag(1./s(1:r)) * U(:,1:r)';
+                                logdet = sum(log(s(1:r)));
+                                % Compute quadratic form using explicit multiplication
+                                quadratic_form = z_t' * Sigma_inv * z_t;
+                            else
+                                P_t(i) = -inf; % Mark as an impossible location
+                                continue;
+                            end
                         end
+                        
+                        % Apply likelihood formula
+                        P_t(i) = real(-logdet - log(pi^(2*el_num)) - quadratic_form);
+                        
+                    catch
+                        P_t(i) = -inf; % For any calculation errors
                     end
-                    
-                    % Apply likelihood formula
-                    P(i) = real(-logdet - log(pi^(2*el_num)) - quadratic_form);
-                    
-                catch
-                    P(i) = -inf; % For any calculation errors
                 end
+                
+                % Add to total log-likelihood
+                P_total = P_total + P_t;
             end
+            
+            % Return average log-likelihood
+            P = P_total / time_samples;
         end
 
         function sin_theta = coors2sin(~,x_tx, y_tx, x_rx, y_rx, phi)
