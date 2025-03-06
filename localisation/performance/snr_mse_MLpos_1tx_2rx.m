@@ -1,7 +1,7 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ITERATION = 500; % Number of Monte Carlo iterations
+ITERATION = 700; % Number of Monte Carlo iterations
 RX_NUM = 2;                         % Number of receivers
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
 SNR_dB = repmat((-10:3:20)', 1, 2);       % SNR in dB
@@ -42,7 +42,7 @@ pos_rx = [21, 51; 20, 40]; % 13
 aoa_act = [0; 0];            % True AoA from Rx to Tx
 
 n_param = length(SNR_dB); % Number of positions to test
-progressbar('reset', ITERATION); % Reset progress bar
+progressbar('reset', ITERATION*size(SNR_dB, 1)); % Reset progress bar
 
 angle_rx_tx_abs = zeros(RX_NUM, 1);
 for i = 1:RX_NUM
@@ -99,8 +99,6 @@ aoa_rel_est = zeros(RX_NUM, num_methods);
 rays_abs = cell(RX_NUM, num_methods);
 %% === Monte Carlo iterations
 for itr = 1:ITERATION
-    %% === Update progress bar
-    progressbar('advance');
     %% --- Location Refresh for each iteration - ONLY ENABLE FOR RANDOMISED RX AND AOA
     aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1); % true Angle of Arrival from RX to TX that will later be transformed to the absolute angle
     pos_rx = area_size*rand(RX_NUM, 2); % Random Receiver position (x, y) in meters
@@ -112,6 +110,8 @@ for itr = 1:ITERATION
     rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
     %% === Loop through each SNR value
     for snr_idx=1:n_param
+        %% === Update progress bar
+        progressbar('step');
         %% === Loop through each method
         for method_idx = 1:num_methods
             %% === Loop through each RX to find the ray from AoA

@@ -49,7 +49,7 @@ map2d = Map2D();
 % Initialize channel model
 channel = ChannelModels();
 for rx_idx=1:RX_NUM
-    progressbar('advance'); % Update progress bar
+    progressbar('step'); % Update progress bar
     % Generate base signal
     s_t = sqrt(P_t(RX_NUM)) .* exp(1j * 2 * pi * sub_carrier(RX_NUM) * t);
     % Calculate average energy of the signal

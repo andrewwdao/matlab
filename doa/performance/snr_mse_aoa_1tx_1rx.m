@@ -51,7 +51,7 @@ CRB_values = zeros(n_param, 1);
 CRB_Stoica_values = zeros(n_param, 1);
 %% === Loop through each SNR value
 for idx=1:n_param
-    progressbar('advance'); % Update progress bar
+    progressbar('step'); % Update progress bar
     % Pre-calculate required values outside loop
     tx_num = size(pos_tx, 1);
     % Generate base signal

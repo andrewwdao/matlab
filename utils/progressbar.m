@@ -3,7 +3,7 @@ function progressbar(option, varargin)
 %Syntax:
 %   PROGRESSBAR('reset', total_progress)
 %   PROGRESSBAR('resettimer')
-%   PROGRESSBAR('advance'[, step])
+%   PROGRESSBAR('step'[, step])
 %   PROGRESSBAR('end')
 %   PROGRESSBAR('barwidth', bar_width)
 %   PROGRESSBAR('displaymode', mode)
@@ -24,7 +24,7 @@ if isempty(total_progress)
     current_progress = 0;
     last_text_width = 0;
     bar_width = 20;
-    display_mode = 0;
+    display_mode = 1;
     min_interval = 0.3;
 end
 
@@ -70,7 +70,7 @@ switch lower(option)
                 error('Positive integer expected for the total progress.');
             end
         end
-    case 'advance'
+    case 'step'
         if nargin >= 2
             step = varargin{1};
             if isscalar(step) && isreal(step) && floor(step) == step
@@ -203,4 +203,4 @@ function s = seconds2str(t)
         end
     end
     
-end    
+end

@@ -13,12 +13,14 @@ TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
+OPT_GRID_DENSITY = 5; % Define a coarse grid for initial guesses
 
 % Physical constants and wavelength
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
 lambda = c / fc;                    % Wavelength
-progressbar('reset', RX_NUM*2+1); % Reset progress bar
+progressbar('reset', RX_NUM+1); % Reset progress bar
+progressbar('minimalupdateinterval', 0); % Set a smaller interval at the beginning
 % Transmitter, receiver positions angles
 area_size = 100;
 pos_tx = [50, 50];                  % Tx at center
@@ -43,6 +45,7 @@ pos_tx = [50, 50];                  % Tx at center
 % pos_rx = [21, 51; 40, 30]; % 11
 % pos_rx = [21, 51; 30, 30]; % 12
 pos_rx = [21, 51; 20, 40]; % 13
+% pos_rx = [21, 51; 0, 30]; % 13
 aoa_act = [0; 0];            % True AoA from Rx to Tx
 SHOW_LIMITS = false; % Show the detecting limits of the RXs (with known limitation)
 SHOW_EXTRA = true; % Show extra information such as the AoA and the intersection point
@@ -51,7 +54,6 @@ SHOW_EXTRA = true; % Show extra information such as the AoA and the intersection
 angle_rx_tx_abs = zeros(RX_NUM, 1);
 for i = 1:RX_NUM
     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
-    progressbar('advance'); % Update progress bar
 end
 rot_abs = angle_rx_tx_abs - aoa_act;
 
@@ -78,27 +80,22 @@ for rx_idx = 1:RX_NUM
     y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
     y_awgn = channel.AWGN(y_ula, nPower);
     w{rx_idx} = y_awgn;
-    progressbar('advance'); % Update progress bar;
+    progressbar('step'); % Update progress bar
 end
-
+%% Find the Maximum Likelihood (ML) estimate of the transmitter position
 % nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
-[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
-% Define the objective function to maximize
-objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
-% Set bounds
-lb = [0, 0];
-ub = [area_size, area_size];
-% Use MLoptimiser class to find the maximum likelihood estimate
-grid_points = 13; % Define a coarse grid for initial guesses
 optimiser = gridOptimiser();
-[optCoord, L_peak] = optimiser.fmincon2D(objective_to_maximize, {}, lb, ub, grid_points);
+objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
+[optCoord, L_peak] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+progressbar('end');  % This will display the total runtime
+progressbar('reset', 1); % Reset progress bar
+%% additional function to plot the 3D map
+[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
 progressbar('end');  % This will display the total runtime
 
-% Print the result
+%% === Plotting and display the result
 fprintf('Peak found at (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
-
-%% === Plotting
 fprintf('SNR (dB):\n')
 fprintf('%.0f  ', SNR_dB); fprintf('\n');
 fprintf('RX Positions:\n');

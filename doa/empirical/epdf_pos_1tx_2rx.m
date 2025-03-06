@@ -59,7 +59,7 @@ map2d = Map2D();
 channel = ChannelModels();
 
 for itr=1:ITERATION
-    progressbar('advance'); % Update progress bar
+    progressbar('step'); % Update progress bar
     %% === Loop through each RX
     aoa_rel_est = zeros(RX_NUM, 1);
     rays_abs = cell(RX_NUM, 1);

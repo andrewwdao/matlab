@@ -45,7 +45,7 @@ progressbar('displaymode', 'append'); % Reset progress bar
 progressbar('minimalupdateinterval', 1); % Update progress bar every x seconds
 est_aoas = zeros(ITERATION, 1);
 parfor itr=1:ITERATION
-    progressbar('advance'); % Update progress bar
+    progressbar('step'); % Update progress bar
     % Initialize channel model
     channel = ChannelModels();
     y_los = channel.LoS(s_t, avg_amp_gain);

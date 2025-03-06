@@ -48,7 +48,7 @@ CRB_Stoica_values = zeros(size(aoa_act));
 % Initialize channel model
 channel = ChannelModels();
 for idx = 1:n_param
-    progressbar('advance'); % Update progress bar
+    progressbar('step'); % Update progress bar
     % Pre-calculate required values outside loop
     tx_num = size(pos_tx{idx}, 1);
     % Generate base signal

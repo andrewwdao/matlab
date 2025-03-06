@@ -30,8 +30,8 @@ classdef Likelihood4Coordinates < handle
             gamma1 = obj.computeGamma(x_tx, y_tx, pos_rx(1,1), pos_rx(1,2), L_d0, d0, alpha);
             gamma2 = obj.computeGamma(x_tx, y_tx, pos_rx(2,1), pos_rx(2,2), L_d0, d0, alpha);
             % Create gamma with same dimensions as sin_theta
-            % gamma1 = obj.createOnes(sin_theta1);
-            % gamma2 = obj.createOnes(sin_theta2);
+            % gamma1 = obj.createOnes(sin_theta1)
+            % gamma2 = obj.createOnes(sin_theta2)
             % Compute the likelihood function based on received signals and steering vectors
             L = obj.likelihoodFromAngles(sin_theta1, sin_theta2, gamma1, gamma2, received_signal_cell, el_num, nPower);
         end

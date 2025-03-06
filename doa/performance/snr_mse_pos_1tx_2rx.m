@@ -42,7 +42,7 @@ CRB_values = zeros(n_param, 1);
 map2d = Map2D();
 %% === Loop through each SNR value
 for snr_idx=1:n_param
-    progressbar('advance'); % Update progress bar
+    progressbar('step'); % Update progress bar
     % Pre-calculate required values outside loop
     tx_num = size(pos_tx, 1);
     % Generate base signal
