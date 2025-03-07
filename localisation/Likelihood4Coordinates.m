@@ -23,6 +23,8 @@ classdef Likelihood4Coordinates < handle
 
         function L = likelihoodFromCoor(obj, x_tx, y_tx, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
             % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at two receivers.
+            % Warning check for numerical instability
+            % obj.safetyDistanceCheck(x_tx, y_tx, pos_rx);
             % Calculate the angular components for each receiver using function f
             sin_theta1 = obj.coors2sin(x_tx, y_tx, pos_rx(1,1), pos_rx(1,2), rot_abs(1));
             sin_theta2 = obj.coors2sin(x_tx, y_tx, pos_rx(2,1), pos_rx(2,2), rot_abs(2));
@@ -45,7 +47,25 @@ classdef Likelihood4Coordinates < handle
             end
         end
 
-        %% ==================================== Local Functions
+        %% ==================================== Local Functions ====================================
+        % function safetyDistanceCheck(~, x_tx, y_tx, pos_rx)
+        %     TX_SAFETY_DISTANCE = 2; % Define safety distance if not already defined
+            
+        %     % Only perform check for scalar inputs (single point evaluation)
+        %     if isscalar(x_tx) && isscalar(y_tx)
+        %         % Check distance to each receiver
+        %         for i = 1:size(pos_rx, 1)
+        %             distance = sqrt((x_tx - pos_rx(i,1))^2 + (y_tx - pos_rx(i,2))^2);
+                    
+        %             % Issue warning if too close
+        %             if distance < TX_SAFETY_DISTANCE
+        %                 warning('RX too close to TX %d (distance: %.2f m) - might cause numerical instability', i, distance);
+        %             end
+        %         end
+        %     end
+        %     % Skip the check for meshgrid inputs (likelihood map generation)
+        % end
+        
         function P = likelihoodFromAngles(obj, sin_theta1, sin_theta2, gamma1, gamma2, received_signal_cell, el_num, nPower)
             % Handle multiple time instances by averaging log-likelihood
             P_total = zeros(size(sin_theta1));
@@ -121,12 +141,12 @@ classdef Likelihood4Coordinates < handle
             
             block1 = cellfun(@(a1, gamma1) abs(gamma1)^2 * (a1 * a1') + nPower * eye(el_num), a1, gamma1, 'UniformOutput', false);
             block2 = cellfun(@(a1, a2, gamma1, gamma2) gamma1 * conj(gamma2) * (a1 * a2'), a1, a2, gamma1, gamma2, 'UniformOutput', false);
-            block3 = cellfun(@(a1, a2, gamma1, gamma2) gamma2 * conj(gamma1) * (a1 * a2'), a2, a1, gamma1, gamma2, 'UniformOutput', false);
+            block3 = cellfun(@(a1, a2, gamma1, gamma2) gamma2 * conj(gamma1) * (a2 * a1'), a1, a2, gamma1, gamma2, 'UniformOutput', false);
             block4 = cellfun(@(a2, gamma2) abs(gamma2)^2 * (a2 * a2') + nPower * eye(el_num), a2, gamma2, 'UniformOutput', false);
             Sigma_z = cellfun(@(b1, b2, b3, b4) [b1, b2; b3, b4], ...
                 block1, block2, block3, block4, 'UniformOutput', false);
             % Add a small identity term to each for numerical stability.
-            % Sigma_z = cellfun(@(S) S + 1e-9 * eye(size(S)), Sigma_z, 'UniformOutput', false);
+            Sigma_z = cellfun(@(S) S + 1e-6 * eye(size(S)), Sigma_z, 'UniformOutput', false);
         end
 
         function a = steerVect_ULA(~, sin_theta, el_num)

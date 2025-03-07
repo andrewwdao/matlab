@@ -1,16 +1,17 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ITERATION = 1000; % Number of Monte Carlo iterations
+ITERATION = 100; % Number of Monte Carlo iterations
 RX_NUM = 2;                         % Number of receivers
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
-SNR_dB = repmat((-10:3:20)', 1, 2);       % SNR in dB
+SNR_dB = repmat((10:3:34)', 1, 2);       % SNR in dB
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
-DOA_MODE = 'sweep';
+DOA_MODE = 'sweep';                % DoA estimation mode ('sweep' or 'opt')
+TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
 % Physical constants and wavelength
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
@@ -95,8 +96,22 @@ rays_abs = cell(RX_NUM, num_methods);
 %% === Monte Carlo iterations
 for itr = 1:ITERATION
     %% --- Location and AoA Refresh for each iteration - ONLY ENABLE FOR RANDOMISED RX AND AOA
-    aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1); % true Angle of Arrival from RX to TX that will later be transformed to the absolute angle
-    pos_rx = area_size*rand(RX_NUM, 2); % Random Receiver position (x, y) in meters
+    % Generate random RX positions ensuring minimum distance from TX
+    pos_rx = zeros(RX_NUM, 2);
+    for i = 1:RX_NUM
+        valid_position = false;
+        while ~valid_position
+            % Generate random position
+            pos_rx(i,:) = area_size * rand(1, 2);
+            
+            % Check if it's far enough from TX
+            if sqrt(sum((pos_tx - pos_rx(i,:)).^2)) >= TX_SAFETY_DISTANCE
+                valid_position = true;
+            end
+        end
+    end
+    % Generate random true Angle of Arrival from RX to TX that will later be transformed to the absolute angle
+    aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1);
     angle_rx_tx_abs = zeros(RX_NUM, 1);
     for i = 1:RX_NUM
         % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
