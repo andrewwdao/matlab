@@ -1,10 +1,10 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ITERATION = 100; % Number of Monte Carlo iterations
+ITERATION = 1000; % Number of Monte Carlo iterations
 RX_NUM = 2;                         % Number of receivers
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
-SNR_dB = repmat((10:3:34)', 1, 2);       % SNR in dB
+SNR_dB = repmat((-10:2:20)', 1, 2);       % SNR in dB
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
@@ -149,8 +149,8 @@ for itr = 1:ITERATION
         rmse_values_ml(snr_idx) = rmse_values_ml(snr_idx) + sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
     end
 end
-rmse_values(snr_idx, :) = rmse_values(snr_idx, :) / ITERATION; % RMSE for DoA estimation methods
-rmse_values_ml(snr_idx) = rmse_values_ml(snr_idx) / ITERATION; % RMSE for ML estimation method
+rmse_values = rmse_values / ITERATION; % RMSE for DoA estimation methods
+rmse_values_ml = rmse_values_ml / ITERATION; % RMSE for ML estimation method
 
 %% === Plotting
 figure('Name', 'RMSE');
