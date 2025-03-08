@@ -7,7 +7,7 @@ classdef Likelihood4Coordinates < handle
         end
 
         function [X, Y, L] = calLikelihood4Area(obj, area_size, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
-            % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at two receivers.
+            % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at K receivers.
             x_tx = linspace(0, area_size, area_size+1);
             y_tx = linspace(0, area_size, area_size+1);
             [X, Y] = meshgrid(x_tx, y_tx);
@@ -16,26 +16,29 @@ classdef Likelihood4Coordinates < handle
         end
 
         function L = likelihoodFromCoorSet(obj, coor, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
-            % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at two receivers.
+            % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at K receivers.
             x_tx = coor(1); y_tx = coor(2);
             L = obj.likelihoodFromCoor(x_tx, y_tx, pos_rx, rot_abs, received_signal_cell, el_num, nPower);
         end
 
+        % filepath: /d:/workspaces/matlab/localisation/Likelihood4Coordinates.m
         function L = likelihoodFromCoor(obj, x_tx, y_tx, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
-            % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at two receivers.
-            % Warning check for numerical instability
-            % obj.safetyDistanceCheck(x_tx, y_tx, pos_rx);
-            % Calculate the angular components for each receiver using function f
-            sin_theta1 = obj.coors2sin(x_tx, y_tx, pos_rx(1,1), pos_rx(1,2), rot_abs(1));
-            sin_theta2 = obj.coors2sin(x_tx, y_tx, pos_rx(2,1), pos_rx(2,2), rot_abs(2));
-            L_d0=100; d0=100; alpha=4;
-            gamma1 = obj.computeGamma(x_tx, y_tx, pos_rx(1,1), pos_rx(1,2), L_d0, d0, alpha);
-            gamma2 = obj.computeGamma(x_tx, y_tx, pos_rx(2,1), pos_rx(2,2), L_d0, d0, alpha);
-            % Create gamma with same dimensions as sin_theta
-            % gamma1 = obj.createOnes(sin_theta1)
-            % gamma2 = obj.createOnes(sin_theta2)
+            % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at K receivers.
+            num_rx = size(pos_rx, 1);
+            L_d0=100; d0=100; alpha=4;  % Parameters for the gamma function
+            % Dynamically calculate for each receiver
+            sin_theta_cell = cell(1, num_rx);
+            gamma_cell = cell(1, num_rx);
+            for rx_idx = 1:num_rx
+                % Calculate the angular components
+                sin_theta_cell{rx_idx} = obj.coors2sin(x_tx, y_tx, pos_rx(rx_idx,1), pos_rx(rx_idx,2), rot_abs(rx_idx));
+                % Calculate gamma values
+                gamma_cell{rx_idx} = obj.computeGamma(x_tx, y_tx, pos_rx(rx_idx,1), pos_rx(rx_idx,2), L_d0, d0, alpha);
+                % gamma_cell{rx_idx} = obj.createOnes(sin_theta_cell{rx_idx});  % Create gamma with same dimensions as sin_theta - for testing gamma=1
+            end
+            
             % Compute the likelihood function based on received signals and steering vectors
-            L = obj.likelihoodFromAngles(sin_theta1, sin_theta2, gamma1, gamma2, received_signal_cell, el_num, nPower);
+            L = obj.likelihoodFromAngles(sin_theta_cell, gamma_cell, received_signal_cell, el_num, nPower);
         end
 
         function cells = createOnes(~, input)
@@ -66,17 +69,17 @@ classdef Likelihood4Coordinates < handle
         %     % Skip the check for meshgrid inputs (likelihood map generation)
         % end
         
-        function P = likelihoodFromAngles(obj, sin_theta1, sin_theta2, gamma1, gamma2, received_signal_cell, el_num, nPower)
+        function P = likelihoodFromAngles(obj, sin_theta_cell, gamma_cell, received_signal_cell, el_num, nPower)
             % Handle multiple time instances by averaging log-likelihood
-            P_total = zeros(size(sin_theta1));
+            P_total = zeros(size(sin_theta_cell{1}));
             time_samples = size(received_signal_cell{1}, 2);
             
             for t = 1:time_samples
                 % Get signal at current time sample
-                z_t = [received_signal_cell{1}(:,t).' received_signal_cell{2}(:,t).'].';
+                z_t = cell2mat(cellfun(@(x) x(:,t), received_signal_cell, 'UniformOutput', false)); % z_t = [w_1t' ... wKt']' is a column vector
                 
-                % Compute covariance matrices
-                Sigma_z = obj.computeSigmaZ(sin_theta1, sin_theta2, gamma1, gamma2, nPower, el_num);
+                % Compute covariance matrices using cell arrays
+                Sigma_z = obj.computeSigmaZ(sin_theta_cell, gamma_cell, nPower, el_num);
                 
                 % Evaluate likelihood for this time sample
                 P_t = zeros(size(Sigma_z));
@@ -134,19 +137,71 @@ classdef Likelihood4Coordinates < handle
             % Computes the steering vector gamma at each grid point.
             gamma = arrayfun(@(x_tx, y_tx) L_d0.^(-1/2) .* d0.^(alpha/2) .* ((x_rx-x_tx)^2+(y_rx-y_tx)^2).^(-alpha/4), x_tx, y_tx, 'UniformOutput', false);
         end
-        function Sigma_z = computeSigmaZ(obj, sin_theta1, sin_theta2, gamma1, gamma2, nPower, el_num)
-            % Computes the covariance matrix Sigma_z at each grid point.
-            a1 = obj.steerVect_ULA(sin_theta1, el_num);
-            a2 = obj.steerVect_ULA(sin_theta2, el_num);
+
+        function Sigma_z = computeSigmaZ(obj, sin_theta_cell, gamma_cell, nPower, el_num)
+            % Computes the covariance matrix Sigma_z at each grid point using cell arrays
+            num_rx = length(sin_theta_cell);
+            % Get steering vectors for all receivers
+            a_cell = cellfun(@(sin_theta) obj.steerVect_ULA(sin_theta, el_num), sin_theta_cell, 'UniformOutput', false);
+            % Check if we're dealing with a single point or a grid
+            isSinglePoint = ~iscell(a_cell{1});
             
-            block1 = cellfun(@(a1, gamma1) abs(gamma1)^2 * (a1 * a1') + nPower * eye(el_num), a1, gamma1, 'UniformOutput', false);
-            block2 = cellfun(@(a1, a2, gamma1, gamma2) gamma1 * conj(gamma2) * (a1 * a2'), a1, a2, gamma1, gamma2, 'UniformOutput', false);
-            block3 = cellfun(@(a1, a2, gamma1, gamma2) gamma2 * conj(gamma1) * (a2 * a1'), a1, a2, gamma1, gamma2, 'UniformOutput', false);
-            block4 = cellfun(@(a2, gamma2) abs(gamma2)^2 * (a2 * a2') + nPower * eye(el_num), a2, gamma2, 'UniformOutput', false);
-            Sigma_z = cellfun(@(b1, b2, b3, b4) [b1, b2; b3, b4], ...
-                block1, block2, block3, block4, 'UniformOutput', false);
-            % Add a small identity term to each for numerical stability.
-            Sigma_z = cellfun(@(S) S + 1e-6 * eye(size(S)), Sigma_z, 'UniformOutput', false);
+            % create a single covariance matrix for a single point
+            if isSinglePoint
+                Sigma_z = {obj.buildCovarianceMatrix(a_cell, gamma_cell, nPower, el_num, num_rx)};
+            % Grid case - create a cell array of covariance matrices for map visualisation
+            else 
+                % Determine the number of grid points
+                num_el = numel(a_cell{1});
+                % Initialize the cell array for full covariance matrices
+                Sigma_z = cell(size(a_cell{1}));
+                
+                % Process each grid point
+                for p = 1:num_el
+                    % Extract steering vectors and gammas for this point
+                    a_point = cell(1, num_rx);
+                    gamma_point = cell(1, num_rx);
+                    for i = 1:num_rx
+                        a_point{i} = a_cell{i}{p};
+                        gamma_point{i} = gamma_cell{i}{p};
+                    end
+                    % Build covariance matrix for this point
+                    Sigma_z{p} = obj.buildCovarianceMatrix(a_point, gamma_point, nPower, el_num, num_rx);
+                end
+            end
+        end
+
+        function cov_matrix = buildCovarianceMatrix(~, a_vectors, gamma_values, nPower, el_num, num_rx)
+            % Helper function to build a covariance matrix for a single point
+            
+            % Initialize the block matrix
+            cov_matrix = zeros(num_rx * el_num, num_rx * el_num); % size: (num_rx * el_num) x (num_rx * el_num)
+            for i = 1:num_rx  % Fill in each block of the covariance matrix
+                for j = 1:num_rx
+                    % Extract steering vectors and gamma values
+                    a_i = a_vectors{i};
+                    a_j = a_vectors{j};
+                    gamma_i = gamma_values{i};
+                    gamma_j = gamma_values{j};
+                    
+                    % Calculate block (i,j)
+                    if i == j
+                        % Diagonal block: signal covariance + noise
+                        block_ij = abs(gamma_i)^2 * (a_i * a_i') + nPower * eye(el_num);
+                    else
+                        % Off-diagonal block: cross-correlation between receivers
+                        block_ij = gamma_i * conj(gamma_j) * (a_i * a_j');
+                    end
+                    
+                    % Insert this block into the full covariance matrix
+                    row_indices = ((i-1)*el_num + 1):(i*el_num);
+                    col_indices = ((j-1)*el_num + 1):(j*el_num);
+                    cov_matrix(row_indices, col_indices) = block_ij;
+                end
+            end
+            
+            % Add small identity term for numerical stability
+            cov_matrix = cov_matrix + 1e-6 * eye(size(cov_matrix));
         end
 
         function a = steerVect_ULA(~, sin_theta, el_num)

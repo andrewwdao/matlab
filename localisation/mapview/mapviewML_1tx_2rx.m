@@ -1,32 +1,11 @@
-%% mapview_with_visualisation.m
-% This script creates a figure with two subplots:
+%% This script creates a figure with two subplots:
 % Left: 3D visualization of L(x,y) using Map3D.
-% Right: Map view (Tx, Rx positions with connecting rays) similar to mapview_1tx_2rx.m.
+% Right: Map view (Tx, Rx positions with connecting rays) using Map2D.
+% The script also prints the peak coordinate and the SNR values.
 
 clear; clc; close all;
 
 %% User Inputs and Configurations
-RX_NUM = 2;                         % Number of receivers
-SNR_dB = 10 * ones(RX_NUM, 1);       % SNR in dB
-ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
-TIME_INST_NUM = 1;                  % Number of time instances
-RESOLUTION = 0.1;                   % Angle resolution (degrees)
-FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
-ELEMENT_NUM = 4;                    % Number of ULA elements
-OPT_GRID_DENSITY = 5; % Define a coarse grid for initial guesses
-
-% Physical constants and wavelength
-c = 299792458;                      % Speed of light (m/s)
-fc = 2.4e9;                         % Operating frequency (Hz)
-lambda = c / fc;                    % Wavelength
-progressbar('reset', RX_NUM+1); % Reset progress bar
-progressbar('minimalupdateinterval', 0); % Set a smaller interval at the beginning
-% Transmitter, receiver positions angles
-area_size = 100;
-pos_tx = [50, 50];                  % Tx at center
-% --- Randomised rx and aoa
-% pos_rx = area_size*rand(RX_NUM, 2); % Random Receiver position (x, y) in meters
-% aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1);
 % --- Fixed rx and aoa - Scenario 1
 % pos_rx = [15.98, 54.27; 67.64, 69.28]; % Two Rx positions
 % aoa_act = [-6.8; 45.6];            % True AoA from Rx to Tx
@@ -44,9 +23,31 @@ pos_tx = [50, 50];                  % Tx at center
 % pos_rx = [21, 51; 50, 30]; % 10
 % pos_rx = [21, 51; 40, 30]; % 11
 % pos_rx = [21, 51; 30, 30]; % 12
-pos_rx = [21, 51; 20, 40]; % 13
-% pos_rx = [21, 51; 0, 30]; % 13
-aoa_act = [0; 0];            % True AoA from Rx to Tx
+% pos_rx = [21, 51; 20, 40; 70,50; 60,80]; % 13
+% % pos_rx = [21, 51; 0, 30]; % 13
+% aoa_act = [0; 0; 0; 0];            % True AoA from Rx to Tx
+% RX_NUM = length(pos_rx);                         % Number of receivers
+RX_NUM = 5;
+SNR_dB = 10 * ones(RX_NUM, 1);       % SNR in dB
+ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
+TIME_INST_NUM = 1;                  % Number of time instances
+RESOLUTION = 0.1;                   % Angle resolution (degrees)
+FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
+ELEMENT_NUM = 4;                    % Number of ULA elements
+OPT_GRID_DENSITY = 5; % Define a coarse grid for initial guesses
+% Transmitter, receiver positions angles
+area_size = 100;
+pos_tx = [50, 50];                  % Tx at center
+% --- Randomised rx and aoa
+pos_rx = area_size*rand(RX_NUM, 2); % Random Receiver position (x, y) in meters
+aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1);
+
+% Physical constants and wavelength
+c = 299792458;                      % Speed of light (m/s)
+fc = 2.4e9;                         % Operating frequency (Hz)
+lambda = c / fc;                    % Wavelength
+progressbar('reset', RX_NUM+1); % Reset progress bar
+progressbar('minimalupdateinterval', 0); % Set a smaller interval at the beginning
 SHOW_LIMITS = false; % Show the detecting limits of the RXs (with known limitation)
 SHOW_EXTRA = true; % Show extra information such as the AoA and the intersection point
 
