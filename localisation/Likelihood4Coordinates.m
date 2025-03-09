@@ -111,7 +111,7 @@ classdef Likelihood4Coordinates < handle
                         end
                         
                         % Apply likelihood formula
-                        P_t(i) = real(-logdet - log(pi^(2*el_num)) - quadratic_form);
+                        P_t(i) = real(-logdet - quadratic_form);
                         
                     catch
                         P_t(i) = -inf; % For any calculation errors
