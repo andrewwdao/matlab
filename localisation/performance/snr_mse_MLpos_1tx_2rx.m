@@ -1,17 +1,15 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ITERATION = 1000; % Number of Monte Carlo iterations
-RX_NUM = 2;                         % Number of receivers
+ITERATION = 5000; % Number of Monte Carlo iterations
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
-SNR_dB = repmat((-10:2:20)', 1, 2);       % SNR in dB
-ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
+ABS_ANGLE_LIM = 1;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                % DoA estimation mode ('sweep' or 'opt')
-TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
+TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)+
 % Physical constants and wavelength
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
@@ -19,6 +17,9 @@ lambda = c / fc;                    % Wavelength
 % Transmitter, receiver positions angles
 area_size = 100;
 pos_tx = [50, 50];                  % Tx at center
+
+RX_NUM = 2;                         % Number of receivers
+SNR_dB = repmat((-10:2:20)', 1, RX_NUM);       % SNR in dB
 % --- Randomised rx and aoa
 % pos_rx = area_size*rand(RX_NUM, 2); % Random Receiver position (x, y) in meters
 % aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1);
@@ -39,15 +40,15 @@ pos_tx = [50, 50];                  % Tx at center
 % pos_rx = [21, 51; 50, 30]; % 10
 % pos_rx = [21, 51; 40, 30]; % 11
 % pos_rx = [21, 51; 30, 30]; % 12
-% pos_rx = [21, 51; 20, 40]; % 13
-% aoa_act = [0; 0];            % True AoA from Rx to Tx
-
-% angle_rx_tx_abs = zeros(RX_NUM, 1);
-% for i = 1:RX_NUM
-%     % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
-%     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
-% end
-% rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
+pos_rx = [21, 51; 20, 40]; % 13
+aoa_act = [0; 0];            % True AoA from Rx to Tx
+% --- Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
+angle_rx_tx_abs = zeros(RX_NUM, 1);
+for i = 1:RX_NUM
+    % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
+    angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
+end
+rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
 
 n_param = length(SNR_dB); % Number of positions to test
 progressbar('reset', ITERATION*n_param); % Reset progress bar
@@ -70,14 +71,14 @@ s_t = sqrt(P_t(RX_NUM)) .* exp(1j * 2 * pi * sub_carrier(RX_NUM) * t);
 % Calculate average energy of the signal
 avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * (avg_amp_gain^2 * P_t(RX_NUM) * T * Fs);
 %% === Define the methods to test for performance
-% doa_est_methods = struct(...
-%     'name', {'ML_sync'}, ... % estimator methods
-%     'extra_args', {{s_t}} ...% extra args required for specific type of estimator
-% );
 doa_est_methods = struct(...
-    'name', {'ML_sync', 'MUSIC', 'MVDR', 'BF'}, ... % estimator methods
-    'extra_args', {{s_t},{tx_num},{},{}} ...% extra args required for specific type of estimator
+    'name', {'ML_async'}, ... % estimator methods
+    'extra_args', {{}} ...% extra args required for specific type of estimator
 );
+% doa_est_methods = struct(...
+%     'name', {'ML_sync', 'MUSIC', 'MVDR', 'BF'}, ... % estimator methods
+%     'extra_args', {{s_t},{tx_num},{},{}} ...% extra args required for specific type of estimator
+% );
 num_methods = numel(doa_est_methods);  % Automatically get number of methods from struct array
 
 %% Initialise classes and arrays
@@ -103,7 +104,7 @@ for itr = 1:ITERATION
         while ~valid_position
             % Generate random position
             pos_rx(i,:) = area_size * rand(1, 2);
-            
+
             % Check if it's far enough from TX
             if sqrt(sum((pos_tx - pos_rx(i,:)).^2)) >= TX_SAFETY_DISTANCE
                 valid_position = true;
@@ -144,9 +145,9 @@ for itr = 1:ITERATION
         end
         
         %% === direct ML estimation
-        objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
-        [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
-        rmse_values_ml(snr_idx) = rmse_values_ml(snr_idx) + sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
+        % objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
+        % [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+        % rmse_values_ml(snr_idx) = rmse_values_ml(snr_idx) + sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
     end
 end
 rmse_values = rmse_values / ITERATION; % RMSE for DoA estimation methods
