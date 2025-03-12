@@ -4,7 +4,7 @@ clear; clc; close all;
 %% User Inputs and Configurations
 ITERATION = 1000; % Reduced from 5000 for faster execution
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
-ABS_ANGLE_LIM = 0:3:15; % Different angle limits to test (degrees)
+ABS_ANGLE_LIM = 0:10:60; % Different angle limits to test (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
@@ -24,8 +24,7 @@ SNR_dB = repmat((-10:2:20)', 1, RX_NUM);       % SNR in dB
 n_param = length(SNR_dB); % Number of SNR points to test
 n_angle_cases = length(ABS_ANGLE_LIM); % Number of angle limit cases
 
-% Initialize storage for all angle limit cases
-rmse_values_all = zeros(n_param, n_angle_cases);
+
 
 progressbar('reset', ITERATION*n_param*n_angle_cases); % Reset progress bar
 
@@ -40,8 +39,6 @@ t = 0:1/Fs:(T-1/Fs);  % Time vector for the signal
 element_spacing = 0.5 * lambda;  % Element spacing (ULA)
 sweeping_angle = -90:RESOLUTION:90; % Angle range for finding the AoA
 
-%% Pre-calculate required values outside loop
-tx_num = size(pos_tx, 1);
 % Generate original transmitted signal
 s_t = sqrt(P_t(1)) .* exp(1j * 2 * pi * sub_carrier(1) * t);
 % Calculate average energy of the signal
@@ -53,12 +50,13 @@ extra_args = {};
 
 %% Initialise classes and arrays
 channel = ChannelModels();
-y_los = channel.LoS(s_t, avg_amp_gain);
 map2d = Map2D();
 l4c = Likelihood4Coordinates();
 optimiser = gridOptimiser();
+y_los = channel.LoS(s_t, avg_amp_gain);
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);
 w = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
+mse_coor_val = zeros(n_param, n_angle_cases); % Initialize storage for all angle limit cases
 
 %% Loop through each angle limit case
 for angle_idx = 1:n_angle_cases
@@ -118,14 +116,14 @@ for angle_idx = 1:n_angle_cases
             
             % --- Calculate the aoa intersection point and the RMSE
             aoa_intersect = map2d.calDoAIntersect(rays_abs{1}, rays_abs{2});
-            rmse_values_all(snr_idx, angle_idx) = rmse_values_all(snr_idx, angle_idx) + ...
-                sqrt((pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2);
+            mse_coor_val(snr_idx, angle_idx) = mse_coor_val(snr_idx, angle_idx) + ...
+                (pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2;
         end
     end
-    
-    % Average the RMSE values for this angle limit case
-    rmse_values_all(:, angle_idx) = rmse_values_all(:, angle_idx) / ITERATION;
 end
+% Average the RMSE values for this angle limit case
+mse_coor_val = mse_coor_val / ITERATION;
+rmse_coor_val = sqrt(mse_coor_val);
 
 %% === Plotting
 figure('Name', 'RMSE Comparison by Angle Limit');
@@ -137,7 +135,7 @@ colors = {'b', 'r', 'g', 'm', 'k', 'c'};
 
 % Plot RMSE for each angle limit
 for i = 1:n_angle_cases
-    semilogy(mean(SNR_dB, 2), rmse_values_all(:, i), ...
+    semilogy(mean(SNR_dB, 2), rmse_coor_val(:, i), ...
         [line_styles{mod(i-1, length(line_styles))+1}, markers{mod(i-1, length(markers))+1}], ...
         'Color', colors{mod(i-1, length(colors))+1}, ...
         'LineWidth', 2, ...
