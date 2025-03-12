@@ -1,20 +1,19 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ITERATION = 2000; % Reduced from 5000 for faster execution
-OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
-ABS_ANGLE_LIM = 0:30:60; % Different angle limits to test (degrees)
+ITERATION = 10000;                     % Reduced from 5000 for faster execution
+OPT_GRID_DENSITY = 10;              % Define a coarse grid for initial guesses
+ABS_ANGLE_LIM = 0:30:60;            % Different angle limits to test (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
-DOA_MODE = 'sweep';                % DoA estimation mode ('sweep' or 'opt')
+DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
-
 % Add parameter to select which metric to plot
-METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75'
-
+METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
+BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
 % Physical constants and wavelength
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
@@ -27,7 +26,6 @@ RX_NUM = 2;                         % Number of receivers
 SNR_dB = repmat((-10:2:20)', 1, RX_NUM);       % SNR in dB
 n_param = length(SNR_dB); % Number of SNR points to test
 n_angle_cases = length(ABS_ANGLE_LIM); % Number of angle limit cases
-
 progressbar('reset', ITERATION*n_param*n_angle_cases); % Reset progress bar
 
 %% Signal and channel configurations
@@ -57,9 +55,8 @@ l4c = Likelihood4Coordinates();
 optimiser = gridOptimiser();
 y_los = channel.LoS(s_t, avg_amp_gain);
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);
-metric = Metric([25, 50, 75]); % Create a Metric object with desired percentiles
+metric = Metric(50); % Create a Metric object with desired percentiles
 w = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
-
 % Initialize storage for all individual errors
 all_errors = cell(n_param, n_angle_cases); % Use cell array for variable-sized collections
 for i=1:n_param
@@ -103,7 +100,6 @@ for angle_idx = 1:n_angle_cases
         %% === Loop through each SNR value
         for snr_idx=1:n_param
             progressbar('step'); % Update progress bar
-            
             %% === Generate the received signal at each Rx
             for rx_idx=1:RX_NUM
                 % --- Generate signal received at Rx
@@ -117,7 +113,6 @@ for angle_idx = 1:n_angle_cases
             % --- DoA Estimation Algorithm at each RX
             aoa_rel_est = zeros(RX_NUM, 1);
             rays_abs = cell(RX_NUM, 1);
-            
             for rx_idx = 1:RX_NUM
                 estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx), DOA_MODE, OPT_GRID_DENSITY);
                 aoa_rel_est(rx_idx) = estimator.(doa_est_method)(w{rx_idx}, extra_args{:}).aoa_est;
@@ -137,32 +132,37 @@ end
 max_possible_error = sqrt(2) * area_size;
 all_errors = metric.capErrorValues(all_errors, max_possible_error);
 
-% Calculate RMSE
-% rmse_values = metric.cal_RMSE(all_errors);
-
-% Calculate percentiles
-percentiles = metric.cal_Percentiles(all_errors, [50]);
-
-%% === Plotting
-% Select which metric to plot
+percentiles = struct( ...
+    'lower', zeros(n_param, n_angle_cases), ...
+    'upper', zeros(n_param, n_angle_cases), ...
+    'val', zeros(n_param, n_angle_cases));
+% Select which metric to calculate and plot
 switch METRIC_TO_PLOT
     case 'rmse'
-        plot_data = rmse_values;
+        plot_data = metric.cal_RMSE(all_errors);
         metric_label = 'RMSE';
     case 'p25'
-        plot_data = percentiles.p25;
+        plot_data = metric.cal_Percentiles(all_errors, 25).val;
         metric_label = '25th Percentile';
     case 'p75'
-        plot_data = percentiles.p75;
+        plot_data = metric.cal_Percentiles(all_errors, 75).val;
         metric_label = '75th Percentile';
+    case 'band'
+        % Calculate the 25th, 50th, and 75th percentiles
+        percentiles = metric.cal_Percentiles(all_errors, BAND_PERCENTILES);
+        % Plot the median with error band
+        plot_data = percentiles.value;
+        metric_label = 'Median with Error Band';
     otherwise
         % Default to median (50th percentile)
-        plot_data = percentiles.p50;
-        metric_label = 'Median (50th Percentile)';
         METRIC_TO_PLOT = 'p50';
+        plot_data = metric.cal_Percentiles(all_errors).val;
+        metric_label = 'Median';
 end
 
-figure('Name', 'Error Comparison by Angle Limit');
+%% === Plotting
+FIGURE_NAME = ['Error Metric by Angle Limit (', num2str(ITERATION), ' iterations)'];
+figure('Name', FIGURE_NAME, 'NumberTitle', 'off');
 
 % Define line styles, markers for different angle limits
 line_styles = {'-', '--', ':', '-.', '-', '--'};
@@ -177,12 +177,12 @@ for i = 1:n_angle_cases
         'LineWidth', 2, ...
         'MarkerSize', 6, ...
         'DisplayName', ['AoA Limit: \pm', num2str(ABS_ANGLE_LIM(i)), '\circ'], ...
-        'ShowBand', SHOW_ERROR_BAND && strcmp(METRIC_TO_PLOT, 'p50'));
-        % 'BandLower', percentiles.p25(:, i), ...
-        % 'BandUpper', percentiles.p75(:, i));
+        'ShowBand', strcmp(METRIC_TO_PLOT, 'band'), ...
+        'BandLower', percentiles.lower(:, i), ...
+        'BandUpper', percentiles.upper(:, i));
 end
 
-title(['Error Comparison by AoA Limit (', num2str(ITERATION), ' iterations)']);
+title(FIGURE_NAME);
 legend('Location', 'northeast');
 xlabel('Signal to Noise Ratio (SNR) [dB]');
 ylabel([metric_label, ' Error [m]']);

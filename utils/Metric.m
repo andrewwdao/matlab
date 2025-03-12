@@ -62,50 +62,73 @@ classdef Metric < handle
         end
         
         function percentiles = cal_Percentiles(~, errors, percentile_values)
-            % CALCULATEPERCENTILES Calculate specified percentiles of error values
-            %   percentiles = CALCULATEPERCENTILES(errors, percentile_values) calculates 
-            %   specified percentiles from the input error values
+            % CAL_PERCENTILES Calculate specified percentiles of error values
+            %   percentiles = CAL_PERCENTILES(errors) calculates the 50th percentile (median)
+            %   percentiles = CAL_PERCENTILES(errors, 50) also calculates the median
+            %   percentiles = CAL_PERCENTILES(errors, [25, 50, 75]) calculates lower quartile,
+            %   median, and upper quartile
             %
             %   Input:
             %     errors: Cell array or matrix of error values
-            %     percentile_values: Array of percentile values to calculate (e.g., [25, 50, 75])
+            %     percentile_values: Single value or array of exactly 3 percentile values
             %   Output:
-            %     percentiles: Structure with fields for each percentile calculated
-            
-            if nargin < 3
-                percentile_values = [25, 50, 75];  % Default percentiles
+            %     percentiles: Structure with fields .val (for single percentile) or
+            %                  .lower, .val, .upper (for 3 percentiles)
+            %
+            %   If percentile_values is not provided, defaults to median (50).
+            %   Function will error if percentile_values contains anything other than
+            %   1 or exactly 3 values.
+
+            % Check and set default percentile values
+            if nargin < 3 || isempty(percentile_values)
+                percentile_values = 50;  % Default to median
             end
-            
-            n_percentiles = length(percentile_values);
-            
+
+            % Validate percentile_values
+            if ~(isscalar(percentile_values) || (isvector(percentile_values) && length(percentile_values) == 3))
+                error('percentile_values must be either a single value or exactly 3 values');
+            end
+
+            % Initialize output struct based on number of percentiles
+            is_single_percentile = isscalar(percentile_values);
+
             if iscell(errors)
                 % For cell array of errors
                 [rows, cols] = size(errors);
                 
-                % Initialize structure for each percentile
-                percentiles = struct();
-                for p_idx = 1:n_percentiles
-                    p_val = percentile_values(p_idx);
-                    percentiles.(['p' num2str(p_val)]) = zeros(rows, cols);
+                % Initialize structure with appropriate fields
+                if is_single_percentile
+                    percentiles = struct('val', zeros(rows, cols));
+                else
+                    % For 3 percentiles, assume [lower, median, upper]
+                    percentiles = struct('lower', zeros(rows, cols), ...
+                                        'val', zeros(rows, cols), ...
+                                        'upper', zeros(rows, cols));
+                    % Sort percentile values to ensure lower/middle/upper order
+                    percentile_values = sort(percentile_values);
                 end
                 
                 % Calculate percentiles
                 for i = 1:rows
                     for j = 1:cols
-                        for p_idx = 1:n_percentiles
-                            p_val = percentile_values(p_idx);
-                            field_name = ['p' num2str(p_val)];
-                            percentiles.(field_name)(i, j) = prctile(errors{i, j}, p_val);
+                        if is_single_percentile
+                            percentiles.val(i, j) = prctile(errors{i, j}, percentile_values);
+                        else
+                            percentiles.lower(i, j) = prctile(errors{i, j}, percentile_values(1));
+                            percentiles.val(i, j) = prctile(errors{i, j}, percentile_values(2));
+                            percentiles.upper(i, j) = prctile(errors{i, j}, percentile_values(3));
                         end
                     end
                 end
             else
                 % For direct array of errors
-                percentiles = struct();
-                for p_idx = 1:n_percentiles
-                    p_val = percentile_values(p_idx);
-                    field_name = ['p' num2str(p_val)];
-                    percentiles.(field_name) = prctile(errors, p_val);
+                if is_single_percentile
+                    percentiles = struct('val', prctile(errors, percentile_values));
+                else
+                    percentile_values = sort(percentile_values);
+                    percentiles = struct('lower', prctile(errors, percentile_values(1)), ...
+                                    'val', prctile(errors, percentile_values(2)), ...
+                                    'upper', prctile(errors, percentile_values(3)));
                 end
             end
         end
