@@ -5,9 +5,8 @@ deprecated/
 
 experimental/
 Tian/
-results/
 __pycache__/
 
 *.asv
-*.fig
+
 *.vscode
