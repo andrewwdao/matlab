@@ -12,7 +12,7 @@ DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 % Add parameter to select which metric to plot
-METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
+METRIC_TO_PLOT = 'rmse';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
 % Physical constants and wavelength
 c = 299792458;                      % Speed of light (m/s)
@@ -129,8 +129,8 @@ end
 
 %% Calculate metrics using the Metric class
 % Cap errors at the maximum theoretical value
-max_possible_error = sqrt(2) * area_size;
-all_errors = metric.capErrorValues(all_errors, max_possible_error);
+%max_possible_error = sqrt(2) * area_size;
+%all_errors = metric.capErrorValues(all_errors, max_possible_error);
 
 percentiles = struct( ...
     'lower', zeros(n_param, n_angle_cases), ...
@@ -161,7 +161,7 @@ switch METRIC_TO_PLOT
 end
 
 %% === Plotting
-FIGURE_NAME = ['Error Metric (Cap) by Angle Limit (', num2str(ITERATION), ' iterations)'];
+FIGURE_NAME = ['Error Metric (No Cap) by Angle Limit (', num2str(ITERATION), ' iterations)'];
 figure('Name', FIGURE_NAME, 'NumberTitle', 'off');
 
 % Define line styles, markers for different angle limits

@@ -12,7 +12,7 @@ DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 % Add parameter to select which metric to plot
-METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
+METRIC_TO_PLOT = 'rmse';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
 % Physical constants and wavelength
 c = 299792458;                      % Speed of light (m/s)
