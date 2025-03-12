@@ -4,13 +4,14 @@ clear; clc; close all;
 %% User Inputs and Configurations
 ITERATION = 1000; % Reduced from 5000 for faster execution
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
-ABS_ANGLE_LIM = 0:10:60; % Different angle limits to test (degrees)
+ABS_ANGLE_LIM = 0:30:60; % Different angle limits to test (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                % DoA estimation mode ('sweep' or 'opt')
 TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
+SHOW_ERROR_BAND = false;  % Whether to show the 25-75 percentile band
 % Physical constants and wavelength
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
@@ -45,8 +46,20 @@ s_t = sqrt(P_t(1)) .* exp(1j * 2 * pi * sub_carrier(1) * t);
 avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * (avg_amp_gain^2 * P_t(1) * T * Fs);
 
 % Define the DoA estimation method
-doa_est_method = 'ML_async';
-extra_args = {};
+doa_est_method = 'MUSIC';
+extra_args = {1};
+
+% Add parameter to select which percentile to plot
+PERCENTILE_TO_PLOT = 50; % Options: 25, 50 (median), 75
+
+%% Replace mse_coor_val with all_errors for storing individual values
+% Initialize storage for all individual errors
+all_errors = cell(n_param, n_angle_cases); % Use cell array for variable-sized collections
+for i=1:n_param
+    for j=1:n_angle_cases
+        all_errors{i,j} = zeros(ITERATION, 1); % Pre-allocate for each SNR-angle combination
+    end
+end
 
 %% Initialise classes and arrays
 channel = ChannelModels();
@@ -56,8 +69,13 @@ optimiser = gridOptimiser();
 y_los = channel.LoS(s_t, avg_amp_gain);
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);
 w = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
-mse_coor_val = zeros(n_param, n_angle_cases); % Initialize storage for all angle limit cases
-
+% mse_coor_val = zeros(n_param, n_angle_cases); % Initialize storage for all angle limit cases
+all_errors = cell(n_param, n_angle_cases); % Use cell array for variable-sized collections
+for i=1:n_param
+    for j=1:n_angle_cases
+        all_errors{i,j} = zeros(ITERATION, 1); % Pre-allocate for each SNR-angle combination
+    end
+end
 %% Loop through each angle limit case
 for angle_idx = 1:n_angle_cases
     current_angle_limit = ABS_ANGLE_LIM(angle_idx);
@@ -116,44 +134,91 @@ for angle_idx = 1:n_angle_cases
             
             % --- Calculate the aoa intersection point and the RMSE
             aoa_intersect = map2d.calDoAIntersect(rays_abs{1}, rays_abs{2});
-            mse_coor_val(snr_idx, angle_idx) = mse_coor_val(snr_idx, angle_idx) + ...
-                (pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2;
+            % Calculate error distance
+            error_distance = sqrt((pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2);
+
+            % Cap the error at a reasonable maximum (diagonal of area)
+            max_possible_error = sqrt(2) * area_size; 
+            if error_distance > max_possible_error || isnan(error_distance) || isinf(error_distance)
+                error_distance = max_possible_error;
+            end
+
+            % mse_coor_val(snr_idx, angle_idx) = mse_coor_val(snr_idx, angle_idx) + error_distance^2;
+            all_errors{snr_idx, angle_idx}(itr) = error_distance;
         end
     end
 end
 % Average the RMSE values for this angle limit case
-mse_coor_val = mse_coor_val / ITERATION;
-rmse_coor_val = sqrt(mse_coor_val);
+% mse_coor_val = mse_coor_val / ITERATION;
+% rmse_coor_val = sqrt(mse_coor_val);
+percentile25 = zeros(n_param, n_angle_cases);
+percentile50 = zeros(n_param, n_angle_cases);
+percentile75 = zeros(n_param, n_angle_cases);
+rmse_values = zeros(n_param, n_angle_cases);  % Keep RMSE for comparison
+
+for i=1:n_param
+    for j=1:n_angle_cases
+        percentile25(i,j) = prctile(all_errors{i,j}, 25);
+        percentile50(i,j) = prctile(all_errors{i,j}, 50);  % This is the median
+        percentile75(i,j) = prctile(all_errors{i,j}, 75);
+        rmse_values(i,j) = sqrt(mean(all_errors{i,j}.^2));  % Calculate RMSE too
+    end
+end
 
 %% === Plotting
-figure('Name', 'RMSE Comparison by Angle Limit');
+% Select which percentile to plot based on parameter
+switch PERCENTILE_TO_PLOT
+    case 25
+        plot_data = percentile25;
+        percentile_label = '25th Percentile';
+    case 75
+        plot_data = percentile75;
+        percentile_label = '75th Percentile';
+    otherwise
+        plot_data = percentile50;  % Default to median
+        percentile_label = 'Median (50th Percentile)';
+end
+
+figure('Name', ' Error Comparison by Angle Limit');
 
 % Define line styles, markers and colors for different angle limits
 line_styles = {'-', '--', ':', '-.', '-', '--'};
 markers = {'o', 's', 'd', '^', 'v', 'p'};
-colors = {'b', 'r', 'g', 'm', 'k', 'c'};
 
-% Plot RMSE for each angle limit
+% Plot selected percentile for each angle limit
 for i = 1:n_angle_cases
-    semilogy(mean(SNR_dB, 2), rmse_coor_val(:, i), ...
+    h_line = semilogy(mean(SNR_dB, 2), plot_data(:, i), ...
         [line_styles{mod(i-1, length(line_styles))+1}, markers{mod(i-1, length(markers))+1}], ...
-        'Color', colors{mod(i-1, length(colors))+1}, ...
         'LineWidth', 2, ...
         'MarkerSize', 6, ...
         'DisplayName', ['AoA Limit: \pm', num2str(ABS_ANGLE_LIM(i)), '\circ']); 
     grid on; hold on;
+    
+    % Optionally add error band (25th-75th percentile)
+    if SHOW_ERROR_BAND && PERCENTILE_TO_PLOT == 50
+        x = mean(SNR_dB, 2);
+        % Get the color of the line that was just plotted
+        line_color = get(h_line, 'Color');
+        % Create shaded area between 25th and 75th percentiles
+        fill([x; flipud(x)], ...
+             [percentile25(:, i); flipud(percentile75(:, i))], ...
+             line_color, ... % Use the same color as the line
+             'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
+             'DisplayName', ['Confidence Band \pm', num2str(ABS_ANGLE_LIM(i)), '\circ']);
+    end
 end
 
-title(['RMSE Comparison by AoA Limit (', num2str(ITERATION), ' iterations)']);
+title(['Error Comparison by AoA Limit (', num2str(ITERATION), ' iterations)']);
 legend('Location', 'northeast');
 xlabel('Signal to Noise Ratio (SNR) [dB]');
-ylabel('Root Mean Square Error (RMSE) [m]');
+ylabel([percentile_label, ' Error [m]']);
 
 % Add a textbox with simulation parameters
 annotation('textbox', [0.15, 0.1, 0.3, 0.2], ...
     'String', {['Method: ', strrep(doa_est_method, '_', ' ')], ...
                ['ULA Elements: ', num2str(ELEMENT_NUM)], ...
-               ['Resolution: ', num2str(RESOLUTION), '\circ']}, ...
+               ['Resolution: ', num2str(RESOLUTION), '\circ'], ...
+               ['Error Metric: ', percentile_label]}, ...
     'FitBoxToText', 'on', ...
     'BackgroundColor', 'white', ...
     'EdgeColor', 'black');
