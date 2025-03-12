@@ -2,7 +2,7 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ITERATION = 1000; % Reduced from 5000 for faster execution
+ITERATION = 2000; % Reduced from 5000 for faster execution
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
 ABS_ANGLE_LIM = 0:30:60; % Different angle limits to test (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
