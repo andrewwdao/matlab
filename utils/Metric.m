@@ -133,89 +133,182 @@ classdef Metric < handle
             end
         end
         
-        function plotErrorMetrics(~, x_data, error_data, plot_type, varargin)
-            % PLOTERRORMETRICS Create plot of error metrics
-            %   PLOTERRORMETRICS(x_data, error_data, plot_type) creates a plot of error metrics
-            %   with x_data on the x-axis and error_data on the y-axis
+        function plotErrorMetrics(~, x_data, y_data, plot_type, varargin)
+            % PLOTERRORMETRICS Create plot of error metrics with multiple lines and annotations
+            %   PLOTERRORMETRICS(x_data, y_data, plot_type) creates a plot with y_data vs x_data
             %
-            %   Input:
-            %     x_data: Data for x-axis
-            %     error_data: Data for y-axis (error metrics)
-            %     plot_type: Type of plot ('linear', 'semilogy', 'loglog', etc.)
-            %     varargin: Additional arguments for plot customization
+            %   For single line:
+            %     x_data: Vector of x-axis values
+            %     y_data: Vector of y-axis values (error metrics) or matrix where each column is a line
+            %
+            %   plot_type: Type of plot ('linear', 'semilogy', 'loglog', etc.)
             %
             %   Optional Name-Value Pairs:
-            %     'LineStyle' - Line style for the plot
-            %     'Marker' - Marker for the plot
-            %     'LineWidth' - Width of the line
-            %     'MarkerSize' - Size of the marker
-            %     'Color' - Color of the line
-            %     'DisplayName' - Name for the legend
-            %     'ShowBand' - Whether to show the error band
-            %     'BandLower' - Lower values for error band
-            %     'BandUpper' - Upper values for error band
+            %     'LineStyles' - Cell array of line styles (e.g., {'-', '--', ':', '-.'})
+            %     'Markers' - Cell array of markers (e.g., {'o', 's', 'd', '^'})
+            %     'LineWidth' - Line width (default: 2)
+            %     'MarkerSize' - Marker size (default: 6)
+            %     'DisplayNames' - Cell array of display names for legend
+            %     'ShowBands' - Logical array indicating which lines should have error bands
+            %     'BandLower' - Matrix where each column is lower band values for a line
+            %     'BandUpper' - Matrix where each column is upper band values for a line
+            %     'Title' - Title of the plot
+            %     'XLabel' - X-axis label
+            %     'YLabel' - Y-axis label
+            %     'LegendLocation' - Location for the legend (default: 'northeast')
+            %     'ShowAnnotation' - Whether to show annotation box (default: false)
+            %     'AnnotationPosition' - Position [x y w h] (default: [0.15, 0.1, 0.3, 0.2])
+            %     'AnnotationStrings' - Cell array of strings for annotation
             
             % Parse inputs
             p = inputParser;
-            addParameter(p, 'LineStyle', '-');
-            addParameter(p, 'Marker', 'o');
+            addParameter(p, 'LineStyles', {'-', '--', ':', '-.', '-', '--'});
+            addParameter(p, 'Markers', {'o', 's', 'd', '^', 'v', 'p'});
             addParameter(p, 'LineWidth', 2);
             addParameter(p, 'MarkerSize', 6);
-            addParameter(p, 'Color', []);
-            addParameter(p, 'DisplayName', '');
-            addParameter(p, 'ShowBand', false);
+            addParameter(p, 'DisplayNames', {});
+            addParameter(p, 'ShowBands', false);
             addParameter(p, 'BandLower', []);
             addParameter(p, 'BandUpper', []);
+            addParameter(p, 'Title', '');
+            addParameter(p, 'XLabel', 'Signal to Noise Ratio (SNR) [dB]');
+            addParameter(p, 'YLabel', 'Error [m]');
+            addParameter(p, 'LegendLocation', 'northeast');
+            addParameter(p, 'ShowAnnotation', false);
+            addParameter(p, 'AnnotationPosition', [0.14, 0.1, 0.3, 0.2]);
+            addParameter(p, 'AnnotationStrings', {});
             parse(p, varargin{:});
             
-            % Create plot based on type
-            switch lower(plot_type)
-                case 'linear'
-                    h_line = plot(x_data, error_data, ...
-                        'LineStyle', p.Results.LineStyle, ...
-                        'Marker', p.Results.Marker, ...
-                        'LineWidth', p.Results.LineWidth, ...
-                        'MarkerSize', p.Results.MarkerSize, ...
-                        'DisplayName', p.Results.DisplayName);
-                case 'semilogy'
-                    h_line = semilogy(x_data, error_data, ...
-                        'LineStyle', p.Results.LineStyle, ...
-                        'Marker', p.Results.Marker, ...
-                        'LineWidth', p.Results.LineWidth, ...
-                        'MarkerSize', p.Results.MarkerSize, ...
-                        'DisplayName', p.Results.DisplayName);
-                case 'loglog'
-                    h_line = loglog(x_data, error_data, ...
-                        'LineStyle', p.Results.LineStyle, ...
-                        'Marker', p.Results.Marker, ...
-                        'LineWidth', p.Results.LineWidth, ...
-                        'MarkerSize', p.Results.MarkerSize, ...
-                        'DisplayName', p.Results.DisplayName);
-                otherwise
-                    error('Unknown plot type: %s', plot_type);
+            figure('Name', p.Results.Title, 'NumberTitle', 'off');
+
+            % Get parameters
+            lineStyles = p.Results.LineStyles;
+            markers = p.Results.Markers;
+            lineWidth = p.Results.LineWidth;
+            markerSize = p.Results.MarkerSize;
+            displayNames = p.Results.DisplayNames;
+            showBands = p.Results.ShowBands;
+            bandLower = p.Results.BandLower;
+            bandUpper = p.Results.BandUpper;
+            
+            % Determine number of lines
+            if isvector(y_data)
+                numLines = 1;
+                y_data = y_data(:); % Ensure column vector
+            else
+                [~, numLines] = size(y_data);
             end
             
-            % Set color if specified
-            if ~isempty(p.Results.Color)
-                set(h_line, 'Color', p.Results.Color);
+            % Make sure x_data is compatible with y_data
+            if isvector(x_data) && length(x_data) == size(y_data, 1)
+                x_data = repmat(x_data(:), 1, numLines);
             end
             
-            % Add confidence band if requested
-            if p.Results.ShowBand && ~isempty(p.Results.BandLower) && ~isempty(p.Results.BandUpper)
-                % Get line color
-                line_color = get(h_line, 'Color');
+            % Make sure displayNames is a cell array with enough elements
+            if isempty(displayNames)
+                displayNames = cell(1, numLines);
+                for i = 1:numLines
+                    displayNames{i} = ['Line ' num2str(i)];
+                end
+            elseif ~iscell(displayNames)
+                displayNames = {displayNames};
+            end
+            
+            % Extend single values to arrays if needed
+            if isscalar(showBands)
+                showBands = repmat(showBands, 1, numLines);
+            end
+            
+            % Plot each line
+            h_lines = zeros(numLines, 1);
+            for i = 1:numLines
+                % Select line style and marker
+                lineStyle = lineStyles{mod(i-1, length(lineStyles))+1};
+                marker = markers{mod(i-1, length(markers))+1};
                 
-                % Create shaded area
+                % Create plot based on type
+                switch lower(plot_type)
+                    case 'linear'
+                        h_lines(i) = plot(x_data(:,i), y_data(:,i), ...
+                            'LineStyle', lineStyle, ...
+                            'Marker', marker, ...
+                            'LineWidth', lineWidth, ...
+                            'MarkerSize', markerSize, ...
+                            'DisplayName', displayNames{i});
+                    case 'semilogy'
+                        h_lines(i) = semilogy(x_data(:,i), y_data(:,i), ...
+                            'LineStyle', lineStyle, ...
+                            'Marker', marker, ...
+                            'LineWidth', lineWidth, ...
+                            'MarkerSize', markerSize, ...
+                            'DisplayName', displayNames{i});
+                    case 'loglog'
+                        h_lines(i) = loglog(x_data(:,i), y_data(:,i), ...
+                            'LineStyle', lineStyle, ...
+                            'Marker', marker, ...
+                            'LineWidth', lineWidth, ...
+                            'MarkerSize', markerSize, ...
+                            'DisplayName', displayNames{i});
+                    otherwise
+                        error('Unknown plot type: %s', plot_type);
+                end
+                
                 hold on;
-                fill([x_data; flipud(x_data)], ...
-                    [p.Results.BandLower; flipud(p.Results.BandUpper)], ...
-                    line_color, 'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
-                    'DisplayName', [p.Results.DisplayName, ' Confidence Band']);
+                
+                % Add confidence band if requested
+                if showBands(i) && ~isempty(bandLower) && ~isempty(bandUpper)
+                    % Get line color
+                    lineColor = get(h_lines(i), 'Color');
+                    
+                    % Create shaded area
+                    fill([x_data(:,i); flipud(x_data(:,i))], ...
+                        [bandLower(:,i); flipud(bandUpper(:,i))], ...
+                        lineColor, 'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
+                        'DisplayName', [displayNames{i}, ' Confidence Band']);
+                end
             end
             
-            % Hold on for additional plots
-            hold on;
+            % Add title, labels, and legend
+            if ~isempty(p.Results.Title)
+                title(p.Results.Title);
+            end
+            xlabel(p.Results.XLabel);
+            ylabel(p.Results.YLabel);
+            legend('Location', p.Results.LegendLocation);
             grid on;
+            
+            % Add annotation if requested
+            if p.Results.ShowAnnotation && ~isempty(p.Results.AnnotationStrings)
+                % Get annotation position and adjust based on number of lines
+                annotPos = p.Results.AnnotationPosition;
+                
+                % Calculate required height based on number of annotation lines
+                numLines = numel(p.Results.AnnotationStrings);
+                baseHeight = 0.0325;  % Base height for box without text
+                lineHeight = 0.0425; % Height per line of text
+                requiredHeight = baseHeight + lineHeight * numLines;
+                
+                % Adjust y-position to ensure annotation stays in figure
+                if annotPos(2) + requiredHeight > 1
+                    % If would exceed top of figure, move down
+                    annotPos(2) = max(0.01, 1 - requiredHeight - 0.01);
+                end
+                
+                % Ensure bottom is not cut off
+                if annotPos(2) < 0.05
+                    annotPos(2) = 0.05;
+                end
+                
+                % Update height based on content
+                annotPos(4) = requiredHeight;
+                
+                % Create annotation with adjusted position
+                annotation('textbox', annotPos, ...
+                    'String', p.Results.AnnotationStrings, ...
+                    'FitBoxToText', 'on', ...
+                    'BackgroundColor', 'white', ...
+                    'EdgeColor', 'black');
+            end
         end
         
         function cap_errors = capErrorValues(~, errors, max_value)

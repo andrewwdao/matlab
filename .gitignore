@@ -1,12 +1,10 @@
 .venv
 deprecated/
 *.asv
-
-
+*.png
+*.jpeg
+*.jpg
 experimental/
 Tian/
 __pycache__/
-
-*.asv
-
 *.vscode
