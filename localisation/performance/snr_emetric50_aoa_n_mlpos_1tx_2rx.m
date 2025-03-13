@@ -15,7 +15,7 @@ RANDOMISE_RX = true;               % Randomise RX positions and AoA
 RX_NUM = 2;                        % Number of receivers
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 % Add parameter to select which metric to plot
-METRIC_TO_PLOT = 'rmse';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
+METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
 
 %% Initialise classes

@@ -15,7 +15,7 @@ RANDOMISE_RX = true;               % Randomise RX positions and AoA
 RX_NUM = 2;                        % Number of receivers
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 % Add parameter to select which metric to plot
-METRIC_TO_PLOT = 'rmse';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
+METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
 
 %% Initialise classes
@@ -179,9 +179,9 @@ for itr = 1:ITERATION
     end
 end
 % Cap errors at the maximum theoretical value
-max_possible_error = sqrt(2) * area_size;
-all_errors = metric.capErrorValues(all_errors, max_possible_error);
-all_ml_errors = metric.capErrorValues(all_ml_errors, max_possible_error);
+%max_possible_error = sqrt(2) * area_size;
+%all_errors = metric.capErrorValues(all_errors, max_possible_error);
+%all_ml_errors = metric.capErrorValues(all_ml_errors, max_possible_error);
 % Calculate average RMSE
 % rmse_values = rmse_values / ITERATION; % RMSE for DoA estimation methods
 % rmse_values_ml = rmse_values_ml / ITERATION; % RMSE for ML estimation method
@@ -295,7 +295,7 @@ metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, num_legend), ...
     'BandLower', percentiles.lower, ...
     'BandUpper', percentiles.upper, ...
-    'Title', ['Error Metric (Cap) by estimation method (', num2str(ITERATION), ' iterations)'], ...
+    'Title', ['Error Metric by estimation method (', num2str(ITERATION), ' iterations)'], ...
     'YLabel', [metric_label, ' Error [m]'], ...
     'ShowAnnotation', true, ...
     'AnnotationStrings', annotStrings);
