@@ -55,7 +55,7 @@ l4c = Likelihood4Coordinates();
 optimiser = gridOptimiser();
 y_los = channel.LoS(s_t, avg_amp_gain);
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);
-metric = Metric(50); % Create a Metric object with desired percentiles
+metric = Metric(); % Create a Metric object with desired percentiles
 w = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
 % Initialize storage for all individual errors
 all_errors = cell(n_param, n_angle_cases); % Use cell array for variable-sized collections

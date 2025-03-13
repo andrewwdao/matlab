@@ -6,7 +6,7 @@ classdef Metric < handle
     % error, and percentile-based metrics.
     
     properties
-        percentile_values = [25, 50, 75];  % Default percentiles to calculate
+        percentile_values = 50;  % Default percentiles to calculate - can also be a vector of 3 values [25, 50, 75]
     end
     
     methods
