@@ -191,6 +191,16 @@ classdef Map2D < handle
             text(deg2rad(angle), radius*1.3, text_str, 'Color', color, 'FontSize', 12); hold on;
         end
 
+        function abs_angle = calAbsAngle(~, pos_tx, pos_rx, aoa_act)
+            % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants.
+            RX_NUM = size(pos_rx, 1);
+            angle_rx_tx_abs = zeros(RX_NUM, 1);
+            for i = 1:RX_NUM
+                angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
+            end
+            abs_angle = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
+        end
+        
         function abs_ray = calAbsRays(obj, pos_abs_rx, pos_abs_tx, rot_abs_rx, aoa_act, rot_lim)
             % Calculate the absolute ray parameters (slope and doa_shift)
             % for a line connecting the Tx and Rx in the 2D plane.

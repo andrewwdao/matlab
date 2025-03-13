@@ -25,8 +25,8 @@ pos_tx = [50, 50];                  % Tx at center
 RX_NUM = 2;                         % Number of receivers
 SNR_dB = repmat((-10:2:20)', 1, RX_NUM);       % SNR in dB
 n_param = length(SNR_dB); % Number of SNR points to test
-n_angle_cases = length(ABS_ANGLE_LIM); % Number of angle limit cases
-progressbar('reset', ITERATION*n_param*n_angle_cases); % Reset progress bar
+num_legend = length(ABS_ANGLE_LIM); % Number of angle limit cases
+progressbar('reset', ITERATION*n_param*num_legend); % Reset progress bar
 
 %% Signal and channel configurations
 avg_amp_gain = 1; % Average gain of the channel
@@ -58,15 +58,15 @@ ula = ULA(lambda, ELEMENT_NUM, element_spacing);
 metric = Metric(); % Create a Metric object with desired percentiles
 w = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
 % Initialize storage for all individual errors
-all_errors = cell(n_param, n_angle_cases); % Use cell array for variable-sized collections
+all_errors = cell(n_param, num_legend); % Use cell array for variable-sized collections
 for i=1:n_param
-    for j=1:n_angle_cases
+    for j=1:num_legend
         all_errors{i,j} = zeros(ITERATION, 1); % Pre-allocate for each SNR-angle combination
     end
 end
 
 %% Loop through each angle limit case
-for angle_idx = 1:n_angle_cases
+for angle_idx = 1:num_legend
     current_angle_limit = ABS_ANGLE_LIM(angle_idx);
     fprintf('Running simulation for angle limit: %d degrees...\n', current_angle_limit);
     
@@ -133,9 +133,9 @@ max_possible_error = sqrt(2) * area_size;
 all_errors = metric.capErrorValues(all_errors, max_possible_error);
 
 percentiles = struct( ...
-    'lower', zeros(n_param, n_angle_cases), ...
-    'upper', zeros(n_param, n_angle_cases), ...
-    'val', zeros(n_param, n_angle_cases));
+    'lower', zeros(n_param, num_legend), ...
+    'upper', zeros(n_param, num_legend), ...
+    'val', zeros(n_param, num_legend));
 % Select which metric to calculate and plot
 switch METRIC_TO_PLOT
     case 'rmse'
@@ -162,8 +162,8 @@ end
 
 %% === Plotting
 % Prepare display names for each angle limit
-displayNames = cell(1, n_angle_cases);
-for i = 1:n_angle_cases
+displayNames = cell(1, num_legend);
+for i = 1:num_legend
     displayNames{i} = ['AoA Limit: \pm', num2str(ABS_ANGLE_LIM(i)), '\circ'];
 end
 
@@ -187,7 +187,7 @@ annotStrings = {
 % Create plot with all lines at once
 metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'DisplayNames', displayNames, ...
-    'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, n_angle_cases), ...
+    'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, num_legend), ...
     'BandLower', percentiles.lower, ...
     'BandUpper', percentiles.upper, ...
     'Title', ['Error Metric (Cap) by Angle Limit (', num2str(ITERATION), ' iterations)'], ...
