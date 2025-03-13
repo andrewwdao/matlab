@@ -1,20 +1,21 @@
+%#ok<NASGU>
+%#ok<UNRCH>
 clear; clc; close all;
-
 %% User Inputs and Configurations
-ITERATION = 500; % Number of Monte Carlo iterations
+ITERATION = 1000; % Number of Monte Carlo iterations
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
-ABS_ANGLE_LIM = 1;                  % Absolute angle limit (degrees)
+ABS_ANGLE_LIM = 60;                  % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 SAFETY_DISTANCE = 2;                % Minimum distance between TX and RX (meters)
-RANDOMISE_RX = false;               % Randomise RX positions and AoA
-RX_NUM = 2;                         %#ok<NASGU>
+RANDOMISE_RX = true;               % Randomise RX positions and AoA
+RX_NUM = 2;                        % Number of receivers
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 % Add parameter to select which metric to plot
-METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
+METRIC_TO_PLOT = 'rmse';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
 
 %% Initialise classes
@@ -107,7 +108,7 @@ for itr = 1:ITERATION
     %% --- Location and AoA Refresh for each iteration - ONLY ENABLE FOR RANDOMISED RX AND AOA
     if RANDOMISE_RX
         % Generate random RX positions ensuring minimum distance from TX
-        pos_rx = zeros(RX_NUM, 2); %#ok<UNRCH>
+        pos_rx = zeros(RX_NUM, 2);
         for i = 1:RX_NUM
             valid_position = false;
             while ~valid_position
