@@ -1,7 +1,7 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ITERATION = 5000; % Number of Monte Carlo iterations
+ITERATION = 1; % Number of Monte Carlo iterations
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
 ABS_ANGLE_LIM = 1;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
@@ -188,10 +188,10 @@ upper_bands = zeros(n_param, num_methods);
 
 %% === Prepare data for plotting
 % Combine RMSE values from DoA methods and ML method for plotting
-all_rmse_values = [rmse_values, rmse_values_ml];
+all_rmse_values = [rmse_values, metric.cal_RMSE(all_errors), rmse_values_ml, metric.cal_RMSE(all_ml_errors)];
 
 % Create display names for all methods
-display_names = cell(1, num_methods + 1);
+display_names = cell(1, num_methods + 3);
 for i = 1:num_methods
     switch DOA_MODE
         case 'sweep'
@@ -202,8 +202,10 @@ for i = 1:num_methods
             extra_str = '';
     end
     display_names{i} = [strrep(doa_est_methods(i).name, '_', ' '), extra_str];
+    display_names{i+1} = [strrep(doa_est_methods(i).name, '_', ' '), extra_str, ' - Metric'];
 end
-display_names{num_methods + 1} = ['ML coor opt with ', num2str(OPT_GRID_DENSITY), 'x', num2str(OPT_GRID_DENSITY), ' coarse grid'];
+display_names{num_methods + 2} = ['ML coor opt with ', num2str(OPT_GRID_DENSITY), 'x', num2str(OPT_GRID_DENSITY), ' coarse grid'];
+display_names{num_methods + 3} = ['ML coor opt with ', num2str(OPT_GRID_DENSITY), 'x', num2str(OPT_GRID_DENSITY), ' coarse grid - Metric'];
 
 % Prepare band data
 % all_lower_bands = [lower_bands, ml_lower_band];
@@ -212,10 +214,10 @@ all_lower_bands = [];
 all_upper_bands = [];
 
 % Setup show bands flag
-show_bands = false(1, num_methods + 1);
-if ITERATION > 1
-    show_bands = true(1, num_methods + 1);
-end
+show_bands = false(1, num_methods + 3);
+% if ITERATION > 1
+%     show_bands = true(1, num_methods + 3);
+% end
 
 % Use Metric.plots for visualization
 metric.plots(mean(SNR_dB, 2), all_rmse_values, 'semilogy', ...
