@@ -133,7 +133,7 @@ classdef Metric < handle
             end
         end
         
-        function plotErrorMetrics(~, x_data, y_data, plot_type, varargin)
+        function plots(~, x_data, y_data, plot_type, varargin)
             % PLOTERRORMETRICS Create plot of error metrics with multiple lines and annotations
             %   PLOTERRORMETRICS(x_data, y_data, plot_type) creates a plot with y_data vs x_data
             %
