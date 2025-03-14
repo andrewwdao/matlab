@@ -33,12 +33,12 @@ if ~RANDOMISE_RX % Fixed rx and aoa
     % pos_rx = [21, 51; 60, 70]; % 5
     % pos_rx = [21, 51; 70, 60]; % 6
     % pos_rx = [21, 51; 70, 50]; % 7
-    % pos_rx = [21, 51; 70, 40]; % 8
+    pos_rx = [21, 51; 70, 40]; % 8
     % pos_rx = [21, 51; 60, 30]; % 9
     % pos_rx = [21, 51; 50, 30]; % 10
     % pos_rx = [21, 51; 40, 30]; % 11
     % pos_rx = [21, 51; 30, 30]; % 12
-    pos_rx = [21, 51; 20, 40]; 
+    % pos_rx = [21, 51; 20, 40]; 
     aoa_act = [0; 0];            % True AoA from Rx to Tx
     RX_NUM = size(pos_rx, 1);    % Update RX_NUM based on number of receivers
     rot_abs = map2d.calAbsAngle(pos_tx, pos_rx, aoa_act);
@@ -134,8 +134,8 @@ for itr = 1:ITERATION
     end
 end
 % Cap errors at the maximum theoretical value
-max_possible_error = sqrt(2) * area_size;
-all_errors = metric.capErrorValues(all_errors, max_possible_error);
+% max_possible_error = sqrt(2) * area_size;
+% all_errors = metric.capErrorValues(all_errors, max_possible_error);
 
 percentiles = struct( ...
     'lower', zeros(n_param, num_legend), ...
@@ -192,7 +192,7 @@ metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, num_legend), ...
     'BandLower', percentiles.lower, ...
     'BandUpper', percentiles.upper, ...
-    'Title', ['Error Metric (Cap) by estimation method (', num2str(ITERATION), ' iterations)'], ...
+    'Title', ['Error Metric (No Cap) by estimation method (', num2str(ITERATION), ' iterations)'], ...
     'YLabel', [metric_label, ' Error [m]'], ...
     'ShowAnnotation', true, ...
     'AnnotationStrings', annotStrings);
