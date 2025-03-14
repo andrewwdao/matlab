@@ -9,54 +9,53 @@ RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
-TX_SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
+SAFETY_DISTANCE = 2;             % Minimum distance between TX and RX (meters)
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 % Add parameter to select which metric to plot
 METRIC_TO_PLOT = 'p50';             % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
-BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
-% Physical constants and wavelength
+BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
+
+%% Initialize classes
+channel = ChannelModels();
+map2d = Map2D();
+l4c = Likelihood4Coordinates();
+optimiser = gridOptimiser();
+metric = Metric(); % Create a Metric object with desired percentiles
+%% Transmitter, receiver positions and angles
+area_size = 100;
+pos_tx = [50, 50];                          % Tx at center
+RX_NUM = 2;                                 % Number of receivers
+%% SNR values to test
+SNR_dB = repmat((-10:2:20)', 1, RX_NUM);    % SNR in dB
+n_param = length(SNR_dB);                   % Number of SNR points to test
+%% Signal and channel configurations
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
-lambda = c / fc;                    % Wavelength
-
-% Transmitter, receiver positions angles
-area_size = 100;
-pos_tx = [50, 50];                  % Tx at center
-RX_NUM = 2;                         % Number of receivers
-SNR_dB = repmat((-10:2:20)', 1, RX_NUM);       % SNR in dB
-n_param = length(SNR_dB); % Number of SNR points to test
-num_legend = length(ABS_ANGLE_LIM); % Number of angle limit cases
-progressbar('reset', ITERATION*n_param*num_legend); % Reset progress bar
-
-%% Signal and channel configurations
-avg_amp_gain = 1; % Average gain of the channel
-P_t = ones(RX_NUM, 1);  % W - Transmit signal power
-sub_carrier = (1:RX_NUM)' * 1000;  % subcarrier spacing by 1000Hz
-Fs = 2 * max(sub_carrier);  % sample frequency
-T = TIME_INST_NUM/Fs; % period of transmission
-t = 0:1/Fs:(T-1/Fs);  % Time vector for the signal
+lambda = c / fc;                    % Wavelength (m)
+avg_amp_gain = 1;                   % Average gain of the channel
+P_t = ones(RX_NUM, 1);              % W - Transmit signal power
+sub_carrier = (1:RX_NUM)' * 1000;   % subcarrier spacing by 1000Hz
+Fs = 2 * max(sub_carrier);          % sample frequency
+T = TIME_INST_NUM/Fs;               % period of transmission
+t = 0:1/Fs:(T-1/Fs);                % Time vector for the signal
 % --- Receive Antenna elements characteristics
-element_spacing = 0.5 * lambda;  % Element spacing (ULA)
+element_spacing = 0.5 * lambda;     % Element spacing (ULA)
 sweeping_angle = -90:RESOLUTION:90; % Angle range for finding the AoA
 
 % Generate original transmitted signal
 s_t = sqrt(P_t(1)) .* exp(1j * 2 * pi * sub_carrier(1) * t);
 % Calculate average energy of the signal
 avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * (avg_amp_gain^2 * P_t(1) * T * Fs);
-
-% Define the DoA estimation method
+%% === Define the methods to test for performance
 doa_est_method = 'MUSIC';
 extra_args = {1};
-
-%% Initialize classes and arrays
-channel = ChannelModels();
-map2d = Map2D();
-l4c = Likelihood4Coordinates();
-optimiser = gridOptimiser();
+num_legend = length(ABS_ANGLE_LIM);         % Number of angle limit cases
+progressbar('reset', ITERATION*n_param*num_legend); % Reset progress bar
+%% Initialise arrays
 y_los = channel.LoS(s_t, avg_amp_gain);
+y_centralised = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);
-metric = Metric(); % Create a Metric object with desired percentiles
-w = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
+
 % Initialize storage for all individual errors
 all_errors = cell(n_param, num_legend); % Use cell array for variable-sized collections
 for i=1:n_param
@@ -73,29 +72,30 @@ for angle_idx = 1:num_legend
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         %% --- Location and AoA Refresh for each iteration
+        [pos_rx, aoa_act, rot_abs] = map2d.genRandomPos(area_size, pos_tx, RX_NUM, SAFETY_DISTANCE, current_angle_limit, RESOLUTION);
         % Generate random RX positions ensuring minimum distance from TX
-        pos_rx = zeros(RX_NUM, 2);
-        for i = 1:RX_NUM
-            valid_position = false;
-            while ~valid_position
-                % Generate random position
-                pos_rx(i,:) = area_size * rand(1, 2);
+        % pos_rx = zeros(RX_NUM, 2);
+        % for i = 1:RX_NUM
+        %     valid_position = false;
+        %     while ~valid_position
+        %         % Generate random position
+        %         pos_rx(i,:) = area_size * rand(1, 2);
 
-                % Check if it's far enough from TX
-                if sqrt(sum((pos_tx - pos_rx(i,:)).^2)) >= TX_SAFETY_DISTANCE
-                    valid_position = true;
-                end
-            end
-        end
+        %         % Check if it's far enough from TX
+        %         if sqrt(sum((pos_tx - pos_rx(i,:)).^2)) >= SAFETY_DISTANCE
+        %             valid_position = true;
+        %         end
+        %     end
+        % end
         
-        % Generate random true Angle of Arrival within the current angle limit
-        aoa_act = -current_angle_limit + RESOLUTION * randi([0, 2*current_angle_limit/RESOLUTION], RX_NUM, 1);
-        angle_rx_tx_abs = zeros(RX_NUM, 1);
-        for i = 1:RX_NUM
-            % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
-            angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
-        end
-        rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
+        % % Generate random true Angle of Arrival within the current angle limit
+        % aoa_act = -current_angle_limit + RESOLUTION * randi([0, 2*current_angle_limit/RESOLUTION], RX_NUM, 1);
+        % angle_rx_tx_abs = zeros(RX_NUM, 1);
+        % for i = 1:RX_NUM
+        %     % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
+        %     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
+        % end
+        % rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
         
         %% === Loop through each SNR value
         for snr_idx=1:n_param
@@ -107,7 +107,7 @@ for angle_idx = 1:num_legend
                 y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
                 y_awgn = channel.AWGN(y_ula, nPower);
                 % --- append received signal to a centralised array for direct ML estimation
-                w{rx_idx} = y_awgn;
+                y_centralised{rx_idx} = y_awgn;
             end
             
             % --- DoA Estimation Algorithm at each RX
@@ -115,11 +115,11 @@ for angle_idx = 1:num_legend
             rays_abs = cell(RX_NUM, 1);
             for rx_idx = 1:RX_NUM
                 estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx), DOA_MODE, OPT_GRID_DENSITY);
-                aoa_rel_est(rx_idx) = estimator.(doa_est_method)(w{rx_idx}, extra_args{:}).aoa_est;
+                aoa_rel_est(rx_idx) = estimator.(doa_est_method)(y_centralised{rx_idx}, extra_args{:}).aoa_est;
                 rays_abs{rx_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx));
             end
             
-            % --- Calculate the aoa intersection point and the RMSE
+            % --- Calculate the aoa intersection point
             aoa_intersect = map2d.calDoAIntersect(rays_abs{1}, rays_abs{2});
             % Calculate error distance
             all_errors{snr_idx, angle_idx}(itr) = sqrt((pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2);
@@ -151,7 +151,7 @@ switch METRIC_TO_PLOT
         % Calculate the 25th, 50th, and 75th percentiles
         percentiles = metric.cal_Percentiles(all_errors, BAND_PERCENTILES);
         % Plot the median with error band
-        plot_data = percentiles.value;
+        plot_data = percentiles.val;
         metric_label = 'Median with Error Band';
     otherwise
         % Default to median (50th percentile)
@@ -184,7 +184,7 @@ annotStrings = {
     ['Error Metric: ', metric_label]
 };
 
-% Create plot with all lines at once
+% Plot the error metric
 metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'DisplayNames', displayNames, ...
     'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, num_legend), ...
