@@ -3,7 +3,6 @@ classdef ChannelModels < handle
     end
     
     methods
-%% ------------------ Class initialisation and helpers -------------------
         function obj = ChannelModels()
         end
 
@@ -55,6 +54,12 @@ classdef ChannelModels < handle
             % input: complex NxT (Number of TXs)x(Number of samples)
             % output: complex NxT (Number of TXs)x(Number of samples)
             output = amp_gain .* input;
+        end
+
+        
+        function gamma = computeGain(~, x_tx, y_tx, x_rx, y_rx, L_d0, d0, alpha)
+            % Computes the steering vector gamma at each grid point.
+            gamma = L_d0.^(-1/2) .* d0.^(alpha/2) .* ((x_rx-x_tx)^2+(y_rx-y_tx)^2).^(-alpha/4);
         end
 
 %% -------------------- Antenna Array Characteristics --------------------
