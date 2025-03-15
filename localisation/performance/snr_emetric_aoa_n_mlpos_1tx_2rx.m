@@ -1,7 +1,7 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION = 2000; % Number of Monte Carlo iterations
+ITERATION = 1000; % Number of Monte Carlo iterations
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
