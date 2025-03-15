@@ -1,7 +1,7 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION = 1000; % Number of Monte Carlo iterations
+ITERATION = 1; % Number of Monte Carlo iterations
 OPT_GRID_DENSITY = 10; % Define a coarse grid for initial guesses
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
@@ -15,7 +15,9 @@ RX_NUM = 2;                         % Number of receivers
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];        % Percentiles for error band if METRIC_TO_PLOT is 'band'
-
+%% Additional RX counts for ML optimization
+ML_RX_COUNTS = 2:8:10;  % Additional receiver counts for ML optimization
+num_ml_variants = length(ML_RX_COUNTS);
 %% Initialise classes
 channel = ChannelModels();
 map2d = Map2D();
@@ -45,7 +47,7 @@ if ~RANDOMISE_RX % Fixed rx and aoa
 end
 
 %% SNR values to test
-SNR_dB = repmat((-10:2:20)', 1, RX_NUM);    % SNR in dB
+SNR_dB = repmat((-10:2:20)', 1, max(RX_NUM,max(ML_RX_COUNTS)));    % SNR in dB
 n_param = length(SNR_dB);                   % Number of positions to test
 %% Signal and channel configurations
 c = 299792458;                              % Speed of light (m/s)
@@ -67,18 +69,14 @@ s_t = sqrt(P_t(RX_NUM)) .* exp(1j * 2 * pi * sub_carrier(RX_NUM) * t);
 % Calculate average energy of the signal
 avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * (avg_amp_gain^2 * P_t(RX_NUM) * T * Fs);
 %% === Define the methods to test for performance
-% doa_est_methods = struct(...
-%     'name', {'ML_async'}, ...                       % estimator methods
-%     'extra_args', {{}} ...                          % extra args required for specific type of estimator
-% );
 doa_est_methods = struct(...
-    'name', {'ML_sync', 'MUSIC', 'MVDR', 'BF'}, ... % estimator methods
-    'extra_args', {{s_t},{tx_num},{},{}} ...        % extra args required for specific type of estimator
+    'name', {'BF'}, ... % estimator methods
+    'extra_args', {{}} ...        % extra args required for specific type of estimator
 );
 num_methods = numel(doa_est_methods);               % Automatically get number of methods from struct array
-num_legend = num_methods + 1;                       % Number of methods plus ML method
+num_legend = num_methods + num_ml_variants;         % Number of methods plus ML method
 fprintf('Running Monte Carlo simulation with %d iterations...\n', ITERATION);
-progressbar('reset', ITERATION*n_param);            % Reset progress bar
+progressbar('reset', ITERATION*n_param+ ITERATION*num_ml_variants*n_param);            % Reset progress bar
 %% Initialise arrays
 y_los = channel.LoS(s_t, avg_amp_gain);             % Line of Sight signal
 y_centralised = cell(RX_NUM, 1);                    % Received signal at each Rx vectorised to cell array
@@ -96,15 +94,14 @@ aoa_rel_est = zeros(RX_NUM, num_methods);           % Pre-allocate for Relative 
 rays_abs = cell(RX_NUM, num_methods);               % Pre-allocate for absolute rays
 %% === Monte Carlo iterations
 for itr = 1:ITERATION
-    %% --- Location and AoA Refresh for each iteration - ONLY ENABLE FOR RANDOMISED RX AND AOA
-    if RANDOMISE_RX
+    %% --- DoA Estimation
+    if RANDOMISE_RX % Location and AoA Refresh for each iteration - ONLY ENABLE FOR RANDOMISED RX AND AOA
         [pos_rx, aoa_act, rot_abs] = map2d.genRandomPos(area_size, pos_tx, RX_NUM, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
     end
-    
-    %% === Loop through each SNR value
+    % Loop through each SNR value
     for snr_idx=1:n_param
         progressbar('step'); % Update progress bar
-        %% === Generate the received signal at each Rx
+        % Generate the received signal at each Rx
         for rx_idx=1:RX_NUM
             % --- Generate signal received at Rx
             nPower = avg_E/db2pow(SNR_dB(snr_idx, rx_idx));
@@ -113,7 +110,7 @@ for itr = 1:ITERATION
             % --- append received signal to a centralised array for direct ML estimation
             y_centralised{rx_idx} = y_awgn;
         end
-        %% === Loop through each method for DoA estimation
+        % Loop through each method for DoA estimation
         for method_idx = 1:num_methods
             % --- DoA Estimation Algorithm at each RX
             for rx_idx = 1:RX_NUM
@@ -121,16 +118,35 @@ for itr = 1:ITERATION
                 aoa_rel_est(rx_idx, method_idx) = estimator.(doa_est_methods(method_idx).name)(y_centralised{rx_idx}, doa_est_methods(method_idx).extra_args{:}).aoa_est;
                 rays_abs{rx_idx, method_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx, method_idx));
             end
-            % --- Calculate the aoa intersection point
+            % --- Calculate the aoa intersection point and the error distance
             aoa_intersect = map2d.calDoAIntersect(rays_abs{1, method_idx}, rays_abs{2, method_idx});
-            % Calculate error distance
             all_errors{snr_idx, method_idx}(itr) = sqrt((pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2);
         end
         
         %% === direct ML estimation
-        objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised, ELEMENT_NUM, nPower);
-        [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
-        all_errors{snr_idx, end}(itr) = sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
+        % objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised, ELEMENT_NUM, nPower);
+        % [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+        % all_errors{snr_idx, end}(itr) = sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
+    end
+    %% === ML optimization with additional receivers
+    for ml_idx = 1:num_ml_variants
+        % --- Generate additional receivers
+        [pos_rx_ml, aoa_act_ml, rot_abs_ml] = map2d.genRandomPos(area_size, pos_tx, ML_RX_COUNTS(ml_idx), SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+        for snr_idx=1:n_param
+            progressbar('step'); % Update progress bar
+            % --- Generate the received signal at each Rx
+            y_centralised_ml = cell(ML_RX_COUNTS(ml_idx), 1);
+            for rx_idx=1:ML_RX_COUNTS(ml_idx)
+                nPower = avg_E/db2pow(SNR_dB(snr_idx, rx_idx));
+                y_ula = channel.applyULA(y_los, aoa_act_ml(rx_idx), ELEMENT_NUM, element_spacing, lambda);
+                y_awgn = channel.AWGN(y_ula, nPower);
+                y_centralised_ml{rx_idx} = y_awgn;
+            end
+            % --- Direct ML estimation
+            objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx_ml, rot_abs_ml, y_centralised_ml, ELEMENT_NUM, nPower);
+            [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+            all_errors{snr_idx, num_methods+ml_idx}(itr) = sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
+        end
     end
 end
 % Cap errors at the maximum theoretical value
@@ -168,21 +184,21 @@ legend_name = cell(1, num_legend);
 for i = 1:num_methods
     switch DOA_MODE
         case 'sweep'
-            modeString = ['Mode: ', DOA_MODE, ' (', num2str(RESOLUTION), '\circ res)'];
+            modeString = [DOA_MODE, ' (', num2str(RESOLUTION), '\circ res)'];
         case 'opt'
-            modeString = ['Mode: ', DOA_MODE, ' (', num2str(OPT_GRID_DENSITY), ' grid)'];
+            modeString = [DOA_MODE, ' (', num2str(OPT_GRID_DENSITY), ' grid)'];
         otherwise
-            modeString = ['Mode: ', DOA_MODE];
+            modeString = [DOA_MODE];
     end
-    legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' (DoA) '];
+    legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA for ', num2str(RX_NUM), ' RXs by ', modeString];
 end
-legend_name{end} = ['ML coor opt (', num2str(OPT_GRID_DENSITY), 'x', num2str(OPT_GRID_DENSITY), ' grid)'];
+for ml_idx = 1:num_ml_variants
+    legend_name{num_methods+ml_idx} = ['MLpos for ' num2str(ML_RX_COUNTS(ml_idx)) ' RXs (' num2str(OPT_GRID_DENSITY), 'x', num2str(OPT_GRID_DENSITY), ' grid)'];
+end
 rx_type = {'fixed', 'randomised'};
 annotStrings = {
-    ['RX number: ', num2str(RX_NUM), ' (', rx_type{RANDOMISE_RX+1}, ')'], ...
     ['ULA elements: ', num2str(ELEMENT_NUM)], ...
     ['Time instances: ', num2str(TIME_INST_NUM)], ...
-    modeString, ...
     ['Error Metric: ', metric_label]
 };
 
