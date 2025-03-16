@@ -6,7 +6,7 @@ classdef ChannelModels < handle
         function obj = ChannelModels()
         end
 
-%% ------------------ Generic Utils -------------------
+%% ---------------------- Generic Utils -----------------------------------
     function logger(~, rx_pos, pos_tx, angles, purpose)
         disp('--------------------------------------------------------');
         disp(purpose);
@@ -17,7 +17,7 @@ classdef ChannelModels < handle
             'VariableNames', cellstr(strcat('TX', num2str((1:size(pos_tx, 1))')))));
     end
 
-%% ------------------ Position Characteristics -------------------
+%% ---------------------- Position Characteristics ------------------------
     function [aoa_act, dist_act] = calculate_true_AoA_and_dist(~, rx_pos, pos_tx)
         aoa_act = zeros(size(rx_pos, 1), size(pos_tx, 1));
         dist_act = zeros(size(rx_pos, 1), size(pos_tx, 1));
@@ -29,7 +29,7 @@ classdef ChannelModels < handle
         end
         % obj.logger(rx_pos, pos_tx, [aoa_act, dist_act], 'True Angles of Arrival with Absolute Distance');
     end
- %% ---------------------- Channel Characteristics -----------------------       
+%% ---------------------- Channel Characteristics -------------------------
         function corrupted_output = AWGN(~, input, sigma_n2)
             % AWGN (independent among antenna elements)
             % Number of elements (N)
@@ -62,7 +62,7 @@ classdef ChannelModels < handle
             gamma = L_d0.^(-1/2) .* d0.^(alpha/2) .* ((x_rx-x_tx)^2+(y_rx-y_tx)^2).^(-alpha/4);
         end
 
-%% -------------------- Antenna Array Characteristics --------------------
+%% ---------------------- Antenna Array Characteristics -------------------
         function output = applyULA(~, input, aoa_act, element_num, element_spacing, lambda)
             % ULA - Uniform Linear Array, we can apply the
             % input: complex 1xT (1 TXs)x(Number of samples)
@@ -74,7 +74,7 @@ classdef ChannelModels < handle
             output = Alpha * input;
         end
 
-        %% --- Performance Evaluation
+%% ---------------------- Performance Evaluation --------------------------
         function CRB = CRB_det_1d(~, tx_sig, nPower, aoa_act, element_num, element_spacing, lambda)
             % --- CRB for general 1D arrays based on the deterministic (conditional) model, in degree.
             %
@@ -114,5 +114,39 @@ classdef ChannelModels < handle
             % Alternatively:
             CRB = 3/2 * nPower * lambda^2 / (tx_sig * tx_sig') / (element_num-1) / element_num / (2*element_num-1) / (pi*lambda/2*cosd(aoa_act)).^2;
         end
+
+%% ---------------------- Generate received signal --------------------------
+        function [nPower, y_centralised] = generateReceivedSignal(obj, sig_tx, pos_tx, pos_rx, aoa_act, e_avg, snr_db, L_d0, d0, alpha, element_num, element_spacing, lambda)
+            % --- Generate received signal
+            % Inputs:
+            %   pos_tx - Position of the TXs.
+            %   pos_rx - Position of the RXs.
+            %   sig_tx - Transmitted signal.
+            %   e_avg - Average energy of the transmitted signal.
+            %   snr_db - SNR in dB.
+            %   L_d0 - Path loss at reference distance d0.
+            %   d0 - Reference distance.
+            %   alpha - Path loss exponent.
+            %   element_num - Number of elements in the array.
+            %   element_spacing - Spacing between the elements.
+            %   lambda - Wavelength.
+            % Outputs:
+            %   nPower - Noise power.
+            %   y_centralised - Received signal.
+            nvar_snr = length(snr_db);  % Number of SNR variants to test
+            num_rx = size(pos_rx, 1);    % Update num_rx based on number of receivers
+            y_centralised = cell(nvar_snr, num_rx); % Received signal at each Rx vectorised to cell array
+            for idx_snr=1:nvar_snr
+                % --- Generate received signal at each Rx
+                for idx_rx=1:num_rx
+                    nPower = e_avg/db2pow(snr_db(idx_snr, idx_rx));
+                    y_los = obj.LoS(sig_tx, obj.computeGain(pos_tx(1), pos_tx(2), pos_rx(idx_rx, 1), pos_rx(idx_rx, 2), L_d0, d0, alpha));
+                    y_ula = obj.applyULA(y_los, aoa_act(idx_rx), element_num, element_spacing, lambda);
+                    y_awgn = obj.AWGN(y_ula, nPower);
+                    y_centralised{idx_snr, idx_rx} = y_awgn;
+                end
+            end
+        end
     end
 end
+

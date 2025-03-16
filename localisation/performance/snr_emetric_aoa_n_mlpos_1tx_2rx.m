@@ -84,7 +84,7 @@ for i = 1:TIME_INST_NUM
 end
 
 % Calculate average energy of the signal
-avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * mean(abs(s_t).^2) * T;
+e_avg = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * mean(abs(s_t).^2) * T;
 %% === Define the methods to test for performance
 doa_est_methods = struct(...
     'name', {'BF'}, ... % estimator methods
@@ -114,23 +114,28 @@ for itr = 1:ITERATION
         [pos_rx, aoa_act, rot_abs] = map2d.genRandomPos(area_size, pos_tx, NUM_RX_DOA, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
     end
     % Loop through each SNR value
+    % for idx_snr=1:nvar_snr
+    %     progressbar('step'); % Update progress bar
+    %     % --- Generate received signal at each Rx
+    %     y_centralised = cell(NUM_RX_DOA, 1); % Received signal at each Rx vectorised to cell array
+    %     for idx_rx=1:NUM_RX_DOA
+    %         nPower = e_avg/db2pow(SNR_dB(idx_snr, idx_rx));
+    %         y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx(idx_rx, 1), pos_rx(idx_rx, 2), L_d0, d0, alpha));
+    %         y_ula = channel.applyULA(y_los, aoa_act(idx_rx), ELEMENT_NUM, element_spacing, lambda);
+    %         y_awgn = channel.AWGN(y_ula, nPower);
+    %         y_centralised{idx_rx} = y_awgn;
+    %     end
+    % end
+    [~, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
+    % Loop through each SNR value
     for idx_snr=1:nvar_snr
         progressbar('step'); % Update progress bar
-        % --- Generate received signal at each Rx
-        y_centralised = cell(NUM_RX_DOA, 1); % Received signal at each Rx vectorised to cell array
-        for idx_rx=1:NUM_RX_DOA
-            nPower = avg_E/db2pow(SNR_dB(idx_snr, idx_rx));
-            y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx(idx_rx, 1), pos_rx(idx_rx, 2), L_d0, d0, alpha));
-            y_ula = channel.applyULA(y_los, aoa_act(idx_rx), ELEMENT_NUM, element_spacing, lambda);
-            y_awgn = channel.AWGN(y_ula, nPower);
-            y_centralised{idx_rx} = y_awgn;
-        end
         % --- DoA Estimation Algorithm
         for idx_doa_method = 1:nvar_doa
             % --- Estimate the AoA and the ray to that AoA for each receiver
             for idx_rx = 1:NUM_RX_DOA
                 estimator = DoAEstimator(ula, sweeping_angle, aoa_act(idx_rx), DOA_MODE, OPT_GRID_DENSITY);
-                aoa_rel_est(idx_rx, idx_doa_method) = estimator.(doa_est_methods(idx_doa_method).name)(y_centralised{idx_rx}, doa_est_methods(idx_doa_method).extra_args{:}).aoa_est;
+                aoa_rel_est(idx_rx, idx_doa_method) = estimator.(doa_est_methods(idx_doa_method).name)(y_centralised{idx_snr, idx_rx}, doa_est_methods(idx_doa_method).extra_args{:}).aoa_est;
                 rays_abs{idx_rx, idx_doa_method} = map2d.calAbsRays(pos_rx(idx_rx,:), pos_tx, rot_abs(idx_rx), aoa_rel_est(idx_rx, idx_doa_method));
             end
             % --- Calculate the aoa intersection point and the error distance
@@ -142,19 +147,24 @@ for itr = 1:ITERATION
     for ml_idx = 1:nvar_mlpos
         % --- Generate additional receivers
         [pos_rx_ml, aoa_act_ml, rot_abs_ml] = map2d.genRandomPos(area_size, pos_tx, NUM_RX_ML(ml_idx), SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+        % for idx_snr=1:nvar_snr
+        %     progressbar('step'); % Update progress bar
+        %     % --- Generate the received signal at each Rx
+        %     y_centralised_ml = cell(NUM_RX_ML(ml_idx), 1);
+        %     for idx_rx=1:NUM_RX_ML(ml_idx)
+        %         nPower = e_avg/db2pow(SNR_dB(idx_snr, idx_rx));
+        %         y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx_ml(idx_rx, 1), pos_rx_ml(idx_rx, 2), L_d0, d0, alpha));
+        %         y_ula = channel.applyULA(y_los, aoa_act_ml(idx_rx), ELEMENT_NUM, element_spacing, lambda);
+        %         y_awgn = channel.AWGN(y_ula, nPower);
+        %         y_centralised_ml{idx_rx} = y_awgn;
+        %     end
+        % end
+        [nPower, y_centralised_ml] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx_ml, aoa_act_ml, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
+        % Loop through each SNR value
         for idx_snr=1:nvar_snr
             progressbar('step'); % Update progress bar
-            % --- Generate the received signal at each Rx
-            y_centralised_ml = cell(NUM_RX_ML(ml_idx), 1);
-            for idx_rx=1:NUM_RX_ML(ml_idx)
-                nPower = avg_E/db2pow(SNR_dB(idx_snr, idx_rx));
-                y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx_ml(idx_rx, 1), pos_rx_ml(idx_rx, 2), L_d0, d0, alpha));
-                y_ula = channel.applyULA(y_los, aoa_act_ml(idx_rx), ELEMENT_NUM, element_spacing, lambda);
-                y_awgn = channel.AWGN(y_ula, nPower);
-                y_centralised_ml{idx_rx} = y_awgn;
-            end
             % --- Direct ML estimation
-            objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx_ml, rot_abs_ml, y_centralised_ml, ELEMENT_NUM, nPower);
+            objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx_ml, rot_abs_ml, y_centralised_ml(idx_snr, :)', ELEMENT_NUM, nPower);
             [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
             all_errors{idx_snr, nvar_doa+ml_idx}(itr) = sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
         end
