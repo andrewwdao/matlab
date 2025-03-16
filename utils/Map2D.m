@@ -1,6 +1,20 @@
 
 classdef Map2D < handle
     properties
+        RX_POS = [
+            21, 51; % 1
+            80, 51; % 2
+            50, 80; % 3
+            50, 20; % 4
+            20, 20; % 5
+            80, 80; % 6
+            20, 80; % 7
+            80, 20; % 8
+            35, 20; % 9
+            65, 20; % 10
+            35, 80; % 11
+            65, 80; % 12
+            ];
     end
     
     methods
@@ -285,13 +299,13 @@ classdef Map2D < handle
             result.y = abs_ray1.doa_slope * result.x + abs_ray1.doa_shift;
         end
 
-        function [pos_rx, aoa_act, rot_abs] = genRandomPos(obj, area_size, pos_tx, rx_num, tx_safety_dist, angle_limit, resolution)
+        function [pos_rx, aoa_act, rot_abs] = genPos(obj, area_size, pos_tx, rx_num, rx_randomised, safety_dist, angle_limit, resolution)
             % Generate random positions for the Rx within the area size and a safe distance from the Tx.
             % 
             % Inputs:
             %    area_size - The size of the area in which the Rx can be placed.
             %    pos_tx - The position of the Tx in the 2D plane.
-            %    tx_safety_dist - The minimum distance between the Tx and Rx.
+            %    safety_dist - The minimum distance between the Tx and Rx.
             %    rx_num - The number of Rx to generate.
             %    angle_limit - The current angle limit for the AoA.
             %    resolution - The resolution of the AoA.
@@ -304,28 +318,35 @@ classdef Map2D < handle
             % Example:
             %    area_size = 100;
             %    pos_tx = [50, 50];
-            %    tx_safety_dist = 10;
+            %    safety_dist = 10;
             %    rx_num = 2;
             %    angle_limit = 30 degree;
             %    resolution = 1 degree;
             pos_rx = zeros(rx_num, 2);
             aoa_act = zeros(rx_num, 1);
-            rot_abs = zeros(rx_num, 1);
-            for i = 1:rx_num
-                valid_position = false;
-                while ~valid_position
-                    % Generate random position
-                    pos_rx(i,:) = area_size * rand(1, 2);
-                    % Check if it's far enough from TX
-                    if sqrt(sum((pos_tx - pos_rx(i,:)).^2)) >= tx_safety_dist
-                        valid_position = true;
+            if rx_randomised
+                for i = 1:rx_num
+                    valid_position = false;
+                    while ~valid_position
+                        % Generate random position
+                        pos_rx(i,:) = area_size * rand(1, 2);
+                        % Check if it's far enough from TX
+                        if sqrt(sum((pos_tx - pos_rx(i,:)).^2)) >= safety_dist
+                            valid_position = true;
+                        end
                     end
+                    % Generate random true Angle of Arrival within the current angle limit
+                    aoa_act(i) = -angle_limit + resolution * randi([0, 2*angle_limit/resolution], 1, 1);
+                  
                 end
-                % Generate random true Angle of Arrival within the current angle limit
-                aoa_act(i) = -angle_limit + resolution * randi([0, 2*angle_limit/resolution], 1, 1);
-                % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
-                rot_abs(i) = obj.calAbsAngle(pos_tx, pos_rx(i,:), aoa_act(i));
+            else % Fixed RX location with 0 deg AoA based on the number of rx
+                for i = 1:rx_num
+                    pos_rx(i,:) = obj.RX_POS(i,:);
+                    aoa_act(i) = 0;
+                end
             end
+            % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
+            rot_abs = obj.calAbsAngle(pos_tx, pos_rx, aoa_act);
         end
     end
 end
