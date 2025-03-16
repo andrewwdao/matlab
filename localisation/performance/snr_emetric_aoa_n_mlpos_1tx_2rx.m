@@ -113,19 +113,6 @@ for itr = 1:ITERATION
     if RANDOMISE_RX % Location and AoA Refresh for each iteration - ONLY ENABLE FOR RANDOMISED RX AND AOA
         [pos_rx, aoa_act, rot_abs] = map2d.genRandomPos(area_size, pos_tx, NUM_RX_DOA, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
     end
-    % Loop through each SNR value
-    % for idx_snr=1:nvar_snr
-    %     progressbar('step'); % Update progress bar
-    %     % --- Generate received signal at each Rx
-    %     y_centralised = cell(NUM_RX_DOA, 1); % Received signal at each Rx vectorised to cell array
-    %     for idx_rx=1:NUM_RX_DOA
-    %         nPower = e_avg/db2pow(SNR_dB(idx_snr, idx_rx));
-    %         y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx(idx_rx, 1), pos_rx(idx_rx, 2), L_d0, d0, alpha));
-    %         y_ula = channel.applyULA(y_los, aoa_act(idx_rx), ELEMENT_NUM, element_spacing, lambda);
-    %         y_awgn = channel.AWGN(y_ula, nPower);
-    %         y_centralised{idx_rx} = y_awgn;
-    %     end
-    % end
     [~, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
     % Loop through each SNR value
     for idx_snr=1:nvar_snr
@@ -145,20 +132,8 @@ for itr = 1:ITERATION
     end
     %% === ML optimization with additional receivers
     for ml_idx = 1:nvar_mlpos
-        % --- Generate additional receivers
+        % --- Generate receivers and the received signal
         [pos_rx_ml, aoa_act_ml, rot_abs_ml] = map2d.genRandomPos(area_size, pos_tx, NUM_RX_ML(ml_idx), SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
-        % for idx_snr=1:nvar_snr
-        %     progressbar('step'); % Update progress bar
-        %     % --- Generate the received signal at each Rx
-        %     y_centralised_ml = cell(NUM_RX_ML(ml_idx), 1);
-        %     for idx_rx=1:NUM_RX_ML(ml_idx)
-        %         nPower = e_avg/db2pow(SNR_dB(idx_snr, idx_rx));
-        %         y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx_ml(idx_rx, 1), pos_rx_ml(idx_rx, 2), L_d0, d0, alpha));
-        %         y_ula = channel.applyULA(y_los, aoa_act_ml(idx_rx), ELEMENT_NUM, element_spacing, lambda);
-        %         y_awgn = channel.AWGN(y_ula, nPower);
-        %         y_centralised_ml{idx_rx} = y_awgn;
-        %     end
-        % end
         [nPower, y_centralised_ml] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx_ml, aoa_act_ml, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
         % Loop through each SNR value
         for idx_snr=1:nvar_snr
