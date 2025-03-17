@@ -1,15 +1,15 @@
-classdef gridOptimiser < handle
+classdef Optimisers < handle
     % Properties to store necessary data for optimization
     properties
     end
     
     methods
         % Constructor to initialize the object
-        function obj = gridOptimiser(varargin)
+        function obj = Optimisers(varargin)
         end
         
         % Method to find the min of the objective function using fmincon
-        function [opt_var, opt_val] = fmincon1D(~, objective_to_minimise, extra_args, lb, ub, grid_points)
+        function [opt_var, opt_val] = gridFmincon1D(~, objective_to_minimise, extra_args, lb, ub, grid_points)
             % Generate a coarse grid of initial guesses within bounds
             initial_guesses = linspace(lb, ub, grid_points);
             
@@ -67,7 +67,7 @@ classdef gridOptimiser < handle
         end
 
         % Method to find the min of the objective function of 2 values using fmincon
-        function [optCoord, L_peak] = fmincon2D(~, objective_to_minimise, extra_args, lb, ub, grid_points)
+        function [optCoord, L_peak] = gridFmincon2D(~, objective_to_minimise, extra_args, lb, ub, grid_points)
             % Generate a coarse grid of initial guesses within bounds
             x = linspace(lb(1), ub(1), grid_points);
             y = linspace(lb(2), ub(2), grid_points);
@@ -130,6 +130,40 @@ classdef gridOptimiser < handle
             % Return the best coordinate and the corresponding maximized value
             optCoord = best_coor;
             L_peak = -best_fval;  % Since objective_for_fmincon = -objective_to_minimise
+        end
+
+        function [optVar, optVal] = findMinWithInitialPoint(~, objective_to_minimise, extra_args, lb, ub, initial_point)
+            % Optimization options (silent mode with FunValCheck)
+            options = optimoptions('fmincon', 'Display', 'off', 'Algorithm', 'interior-point', 'FunValCheck', 'on');
+            
+            % Define the objective function for fmincon
+            objective_for_fmincon = @(var) objective_to_minimise(var, extra_args{:});
+            
+            try
+                % Evaluate objective at initial point
+                test_val = objective_for_fmincon(initial_point);
+                
+                % Handle special cases
+                if isnan(test_val) || isinf(test_val) && test_val > 0
+                    fprintf('Initial point [%.2f, %.2f]: Objective is NaN/+Inf.\n', initial_point);
+                    optVal = Inf;
+                    optVar = initial_point; % -Inf is the worst possible value for minimization
+                    return; % No need to run fmincon, Initial point is invalid.
+                elseif isinf(test_val) && test_val < 0
+                    fprintf('Initial point [%.2f, %.2f]: Objective is -Inf.\n', initial_point);
+                    optVal = -Inf;
+                    optVar = initial_point; % -Inf is the best possible value for minimization
+                    return; % No need to run fmincon
+                end
+                
+                % If test_val is finite, run fmincon
+                [optVar, optVal] = fmincon(objective_for_fmincon, initial_point, [], [], [], [], lb, ub, [], options);
+                % fprintf('Initial point %.2f converged to %.2f with value %.4f.\n', initial_point, optVar, fval);
+                
+            catch ME
+                fprintf('Error at initial point %.2f: %s\n', initial_point, ME.message);
+                error('Error occurred during optimization. Cannot determine local minimum value.');
+            end
         end
     end
 end

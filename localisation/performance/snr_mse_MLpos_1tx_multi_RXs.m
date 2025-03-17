@@ -26,7 +26,7 @@ n_param = length(SNR_dB_RANGE);     % Number of SNR points to test
 channel = ChannelModels();
 map2d = Map2D();
 l4c = Likelihood4Coordinates();
-optimiser = gridOptimiser();
+optimiser = Optimisers();
 rmse_all_cases = zeros(n_param, length(RX_CASES)); % Storage for results from different RX cases
 %% Loop through each RX case
 for rx_case_idx = 1:length(RX_CASES)
@@ -103,7 +103,7 @@ for rx_case_idx = 1:length(RX_CASES)
             
             %% === Direct ML estimation
             objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
-            [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+            [optCoord, ~] = optimiser.gridFmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
             rmse_values_ml(snr_idx) = rmse_values_ml(snr_idx) + sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
         end
     end

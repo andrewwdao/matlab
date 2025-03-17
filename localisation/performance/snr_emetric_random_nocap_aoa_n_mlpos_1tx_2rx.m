@@ -1,7 +1,7 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION = 500;                    % Number of Monte Carlo iterations
+ITERATION = 3000;                    % Number of Monte Carlo iterations
 OPT_GRID_DENSITY = 10;              % Define a coarse grid for initial guesses
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
@@ -9,9 +9,9 @@ RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
-SAFETY_DISTANCE = 2;                % Minimum distance between TX and RX (meters)
-RANDOMISE_RX = true;                % Randomise RX positions and AoA
 NUM_RX_DOA = 2;                     % Number of receivers
+RANDOMISE_RX = true;                % Randomise RX positions and AoA
+SAFETY_DISTANCE = 2;                % Minimum distance between TX and RX (meters)
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
@@ -23,29 +23,10 @@ channel = ChannelModels();
 map2d = Map2D();
 metric = Metric();
 l4c = Likelihood4Coordinates();
-optimiser = gridOptimiser();
+optimiser = Optimisers();
 %% Transmitter, receiver positions and angles
 area_size = 100;
 pos_tx = [50, 50];
-if ~RANDOMISE_RX % Fixed rx and aoa
-    % pos_rx = [21, 51; 21, 60]; % 1
-    % pos_rx = [21, 51; 30, 70]; % 2
-    % pos_rx = [21, 51; 40, 70]; % 3
-    % pos_rx = [21, 51; 50, 70]; % 4
-    % pos_rx = [21, 51; 60, 70]; % 5
-    % pos_rx = [21, 51; 70, 60]; % 6
-    % pos_rx = [21, 51; 70, 50]; % 7
-    % pos_rx = [21, 51; 70, 40]; % 8
-    % pos_rx = [21, 51; 60, 30]; % 9
-    % pos_rx = [21, 51; 50, 30]; % 10
-    % pos_rx = [21, 51; 40, 30]; % 11
-    % pos_rx = [21, 51; 30, 30]; % 12
-    pos_rx = [21, 51; 20, 40]; 
-    aoa_act = [0; 0];            % True AoA from Rx to Tx
-    NUM_RX_DOA = size(pos_rx, 1);    % Update NUM_RX_DOA based on number of receivers
-    rot_abs = map2d.calAbsAngle(pos_tx, pos_rx, aoa_act);
-end
-
 %% SNR values to test
 SNR_dB = repmat((-10:2:20)', 1, max(NUM_RX_DOA, max(NUM_RX_ML)));    % SNR in dB
 nvar_snr = length(SNR_dB);                   % Number of positions to test
@@ -84,7 +65,7 @@ for i = 1:TIME_INST_NUM
 end
 
 % Calculate average energy of the signal
-avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * mean(abs(s_t).^2) * T;
+e_avg = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * mean(abs(s_t).^2) * T;
 %% === Define the methods to test for performance
 doa_est_methods = struct(...
     'name', {'BF'}, ... % estimator methods
@@ -104,33 +85,20 @@ for i=1:nvar_snr
         all_errors{i,j} = zeros(ITERATION, 1);
     end
 end
-
 aoa_rel_est = zeros(NUM_RX_DOA, nvar_doa);           % Pre-allocate for Relative AoA estimation
 rays_abs = cell(NUM_RX_DOA, nvar_doa);               % Pre-allocate for absolute rays
 %% === Monte Carlo iterations
 for itr = 1:ITERATION
     %% --- DoA Estimation
-    if RANDOMISE_RX % Location and AoA Refresh for each iteration - ONLY ENABLE FOR RANDOMISED RX AND AOA
-        [pos_rx, aoa_act, rot_abs] = map2d.genRandomPos(area_size, pos_tx, NUM_RX_DOA, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
-    end
-    % Loop through each SNR value
-    for idx_snr=1:nvar_snr
+    [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, NUM_RX_DOA, RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+    [~, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
+    for idx_snr=1:nvar_snr % Loop through each SNR value
         progressbar('step'); % Update progress bar
-        % --- Generate received signal at each Rx
-        y_centralised = cell(NUM_RX_DOA, 1); % Received signal at each Rx vectorised to cell array
-        for idx_rx=1:NUM_RX_DOA
-            nPower = avg_E/db2pow(SNR_dB(idx_snr, idx_rx));
-            y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx(idx_rx, 1), pos_rx(idx_rx, 2), L_d0, d0, alpha));
-            y_ula = channel.applyULA(y_los, aoa_act(idx_rx), ELEMENT_NUM, element_spacing, lambda);
-            y_awgn = channel.AWGN(y_ula, nPower);
-            y_centralised{idx_rx} = y_awgn;
-        end
-        % --- DoA Estimation Algorithm
         for idx_doa_method = 1:nvar_doa
             % --- Estimate the AoA and the ray to that AoA for each receiver
             for idx_rx = 1:NUM_RX_DOA
                 estimator = DoAEstimator(ula, sweeping_angle, aoa_act(idx_rx), DOA_MODE, OPT_GRID_DENSITY);
-                aoa_rel_est(idx_rx, idx_doa_method) = estimator.(doa_est_methods(idx_doa_method).name)(y_centralised{idx_rx}, doa_est_methods(idx_doa_method).extra_args{:}).aoa_est;
+                aoa_rel_est(idx_rx, idx_doa_method) = estimator.(doa_est_methods(idx_doa_method).name)(y_centralised{idx_snr, idx_rx}, doa_est_methods(idx_doa_method).extra_args{:}).aoa_est;
                 rays_abs{idx_rx, idx_doa_method} = map2d.calAbsRays(pos_rx(idx_rx,:), pos_tx, rot_abs(idx_rx), aoa_rel_est(idx_rx, idx_doa_method));
             end
             % --- Calculate the aoa intersection point and the error distance
@@ -138,24 +106,27 @@ for itr = 1:ITERATION
             all_errors{idx_snr, idx_doa_method}(itr) = sqrt((pos_tx(1,1)-aoa_intersect.x)^2 + (pos_tx(1,2)-aoa_intersect.y)^2);
         end
     end
-    %% === ML optimization with additional receivers
+    %% --- ML optimization with additional receivers
     for ml_idx = 1:nvar_mlpos
-        % --- Generate additional receivers
-        [pos_rx_ml, aoa_act_ml, rot_abs_ml] = map2d.genRandomPos(area_size, pos_tx, NUM_RX_ML(ml_idx), SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+        % --- Generate receivers and the received signal
+        [pos_rx_ml, aoa_act_ml, rot_abs_ml] = map2d.genPos(area_size, pos_tx, NUM_RX_ML(ml_idx), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+        [nPower, y_centralised_ml] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx_ml, aoa_act_ml, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
+        % Loop through each SNR value
         for idx_snr=1:nvar_snr
             progressbar('step'); % Update progress bar
-            % --- Generate the received signal at each Rx
-            y_centralised_ml = cell(NUM_RX_ML(ml_idx), 1);
-            for idx_rx=1:NUM_RX_ML(ml_idx)
-                nPower = avg_E/db2pow(SNR_dB(idx_snr, idx_rx));
-                y_los = channel.LoS(s_t, channel.computeGain(pos_tx(1), pos_tx(2), pos_rx_ml(idx_rx, 1), pos_rx_ml(idx_rx, 2), L_d0, d0, alpha));
-                y_ula = channel.applyULA(y_los, aoa_act_ml(idx_rx), ELEMENT_NUM, element_spacing, lambda);
-                y_awgn = channel.AWGN(y_ula, nPower);
-                y_centralised_ml{idx_rx} = y_awgn;
+            % % --- Direct ML estimation
+            objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx_ml, rot_abs_ml, y_centralised_ml(idx_snr, :)', ELEMENT_NUM, nPower);
+            % [optCoord, ~] = optimiser.gridFmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+            % all_errors{idx_snr, nvar_doa+ml_idx}(itr) = sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
+            % --- Estimate the AoA and the ray to that AoA for each receiver
+            for idx_rx = 1:NUM_RX_DOA
+                estimator = DoAEstimator(ula, sweeping_angle, aoa_act_ml(idx_rx), DOA_MODE, OPT_GRID_DENSITY);
+                aoa_rel_est(idx_rx, 1) = estimator.(doa_est_methods(1).name)(y_centralised_ml{idx_snr, idx_rx}, doa_est_methods(1).extra_args{:}).aoa_est;
+                rays_abs{idx_rx, 1} = map2d.calAbsRays(pos_rx_ml(idx_rx,:), pos_tx, rot_abs_ml(idx_rx), aoa_rel_est(idx_rx, 1));
             end
-            % --- Direct ML estimation
-            objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx_ml, rot_abs_ml, y_centralised_ml, ELEMENT_NUM, nPower);
-            [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+            % --- Calculate the aoa intersection point and the error distance
+            aoa_intersect = map2d.calDoAIntersect(rays_abs{1, 1}, rays_abs{2, 1});
+            [optCoord, ~] = optimiser.findMinWithInitialPoint(objective_to_maximize, {}, [0, 0], [area_size, area_size], [aoa_intersect.x, aoa_intersect.y]);
             all_errors{idx_snr, nvar_doa+ml_idx}(itr) = sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
         end
     end
@@ -208,6 +179,7 @@ for ml_idx = 1:nvar_mlpos
 end
 rx_type = {'fixed', 'randomised'};
 annotStrings = {
+    ['RX Type: ', rx_type{1 + RANDOMISE_RX}], ...
     ['ULA elements: ', num2str(ELEMENT_NUM)], ...
     ['Time instances: ', num2str(TIME_INST_NUM)], ...
     ['Error Metric: ', metric_label]

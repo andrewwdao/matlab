@@ -19,7 +19,7 @@ BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PL
 channel = ChannelModels();
 map2d = Map2D();
 l4c = Likelihood4Coordinates();
-optimiser = gridOptimiser();
+optimiser = Optimisers();
 metric = Metric(); % Create a Metric object with desired percentiles
 %% Transmitter, receiver positions and angles
 area_size = 100;
