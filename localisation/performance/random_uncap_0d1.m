@@ -2,7 +2,7 @@ clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
 ITERATION = 9000;                    % Number of Monte Carlo iterations
-RANDOMISE_RX = false;                % Randomise RX positions and AoA
+RANDOMISE_RX = true;                % Randomise RX positions and AoA
 CAP_ERROR = false;                   % Cap error values at the maximum theoretical value
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 0.1;               % Angle resolution (degrees)

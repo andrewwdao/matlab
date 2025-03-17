@@ -3,7 +3,7 @@ clear; clc; close all;
 %% User Inputs and Configurations
 ITERATION = 9000;                    % Number of Monte Carlo iterations
 RANDOMISE_RX = false;                % Randomise RX positions and AoA
-CAP_ERROR = false;                   % Cap error values at the maximum theoretical value
+CAP_ERROR = true;                   % Cap error values at the maximum theoretical value
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 0.1;               % Angle resolution (degrees)
 OPT_GRID_DENSITY = 10;              % Define a coarse grid for initial guesses

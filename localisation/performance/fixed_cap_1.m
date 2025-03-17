@@ -1,20 +1,21 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION = 3000;                    % Number of Monte Carlo iterations
+ITERATION = 9000;                    % Number of Monte Carlo iterations
+RANDOMISE_RX = false;                % Randomise RX positions and AoA
+CAP_ERROR = true;                   % Cap error values at the maximum theoretical value
+DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
+DOA_RESOLUTION = 1;               % Angle resolution (degrees)
 OPT_GRID_DENSITY = 10;              % Define a coarse grid for initial guesses
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
-RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
-DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 NUM_RX_DOA = 2;                     % Number of receivers
-RANDOMISE_RX = false;                % Randomise RX positions and AoA
 SAFETY_DISTANCE = 2;                % Minimum distance between TX and RX (meters)
-SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
+SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
 %% Additional RX counts for ML optimization
 NUM_RX_ML = 2:8:10;                 % Additional receiver counts for ML optimization
 nvar_mlpos = length(NUM_RX_ML);     % Number of variants for ML optimization
@@ -44,7 +45,7 @@ T = TIME_INST_NUM/Fs;                       % Period of transmission
 t = 0:1/Fs:(T-1/Fs);                        % Time vector for the signal
 % --- Receive Antenna elements characteristics
 element_spacing = 0.5 * lambda;             % Element spacing (ULA)
-sweeping_angle = -90:RESOLUTION:90;         % Angle range for finding the AoA
+sweeping_angle = -90:DOA_RESOLUTION:90;         % Angle range for finding the AoA
 
 % Generate nuisance transmitted signal with random phase
 % Only the frequency and power are known
@@ -90,7 +91,7 @@ rays_abs = cell(NUM_RX_DOA, nvar_doa);               % Pre-allocate for absolute
 %% === Monte Carlo iterations
 for itr = 1:ITERATION
     %% --- DoA Estimation
-    [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, NUM_RX_DOA, RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+    [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, NUM_RX_DOA, RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
     [~, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
     for idx_snr=1:nvar_snr % Loop through each SNR value
         progressbar('step'); % Update progress bar
@@ -109,7 +110,7 @@ for itr = 1:ITERATION
     %% --- ML optimization with additional receivers
     for ml_idx = 1:nvar_mlpos
         % --- Generate receivers and the received signal
-        [pos_rx_ml, aoa_act_ml, rot_abs_ml] = map2d.genPos(area_size, pos_tx, NUM_RX_ML(ml_idx), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+        [pos_rx_ml, aoa_act_ml, rot_abs_ml] = map2d.genPos(area_size, pos_tx, NUM_RX_ML(ml_idx), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
         [nPower, y_centralised_ml] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx_ml, aoa_act_ml, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
         % Loop through each SNR value
         for idx_snr=1:nvar_snr
@@ -132,8 +133,10 @@ for itr = 1:ITERATION
     end
 end
 % Cap errors at the maximum theoretical value
-max_possible_error = sqrt(2) * area_size;
-all_errors = metric.capErrorValues(all_errors, max_possible_error);
+if CAP_ERROR
+    max_possible_error = sqrt(2) * area_size;
+    all_errors = metric.capErrorValues(all_errors, max_possible_error);
+end
 
 percentiles = struct( ...
     'lower', zeros(nvar_snr, num_legend), ...
@@ -166,7 +169,7 @@ legend_name = cell(1, num_legend);
 for i = 1:nvar_doa
     switch DOA_MODE
         case 'sweep'
-            modeString = [DOA_MODE, ' (', num2str(RESOLUTION), '\circ res)'];
+            modeString = [DOA_MODE, ' (', num2str(DOA_RESOLUTION), '\circ res)'];
         case 'opt'
             modeString = [DOA_MODE, ' (', num2str(OPT_GRID_DENSITY), ' grid)'];
         otherwise
@@ -175,14 +178,15 @@ for i = 1:nvar_doa
     legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA for ', num2str(NUM_RX_DOA), ' RXs by ', modeString];
 end
 for ml_idx = 1:nvar_mlpos
-    legend_name{nvar_doa+ml_idx} = ['MLpos for ' num2str(NUM_RX_ML(ml_idx)) ' RXs (' num2str(OPT_GRID_DENSITY), 'x', num2str(OPT_GRID_DENSITY), ' grid)'];
+    legend_name{nvar_doa+ml_idx} = ['MLpos of ' num2str(NUM_RX_ML(ml_idx)) ' RXs from 2 DoA initial'];
 end
 rx_type = {'fixed', 'randomised'};
+cap_error = {'uncapped', 'capped'};
 annotStrings = {
     ['RX Type: ', rx_type{1 + RANDOMISE_RX}], ...
     ['ULA elements: ', num2str(ELEMENT_NUM)], ...
     ['Time instances: ', num2str(TIME_INST_NUM)], ...
-    ['Error Metric: ', metric_label]
+    ['Error Metric: ', metric_label, ' (', cap_error{1+CAP_ERROR},')']
 };
 
 % Plot the error metric
@@ -191,7 +195,7 @@ metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, num_legend), ...
     'BandLower', percentiles.lower, ...
     'BandUpper', percentiles.upper, ...
-    'Title', ['Error Metric (Cap) by estimation method (', num2str(ITERATION), ' iterations)'], ...
+    'Title', ['Error Metric by estimation method (', num2str(ITERATION), ' iterations)'], ...
     'YLabel', [metric_label, ' Error [m]'], ...
     'ShowAnnotation', true, ...
     'AnnotationStrings', annotStrings);
