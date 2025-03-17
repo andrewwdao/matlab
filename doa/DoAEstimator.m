@@ -56,15 +56,15 @@ classdef DoAEstimator < handle
         end
 
         function result = applyOptimization(obj, objective)
-            % Instantiate gridOptimiser
-            optimiser = gridOptimiser();
+            % Instantiate Optimisers
+            optimiser = Optimisers();
             % Objective function needs to be reversed for minimization
             objective = @(angle) -objective(angle);
             % Global search over full angle range
             lb = -90; % Lower bound angle
             ub = 90; % Upper bound angle
-            % Perform optimization using gridOptimiser.fmincon
-            [opt_angle, ~] = optimiser.fmincon1D(objective, {}, lb, ub, obj.grid_points);
+            % Perform optimization using Optimisers.fmincon
+            [opt_angle, ~] = optimiser.gridFmincon1D(objective, {}, lb, ub, obj.grid_points);
             % Store results
             result.aoa_est = opt_angle;
             result.square_err = (opt_angle - obj.aoa_act).^2;

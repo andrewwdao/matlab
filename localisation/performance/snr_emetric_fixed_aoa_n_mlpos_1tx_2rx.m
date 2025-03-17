@@ -21,7 +21,7 @@ channel = ChannelModels();
 map2d = Map2D();
 metric = Metric();
 l4c = Likelihood4Coordinates();
-optimiser = gridOptimiser();
+optimiser = Optimisers();
 %% Transmitter, receiver positions and angles
 area_size = 100;
 pos_tx = [50, 50];
@@ -129,7 +129,7 @@ for itr = 1:ITERATION
         
         %% === direct ML estimation
         objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised, ELEMENT_NUM, nPower);
-        [optCoord, ~] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+        [optCoord, ~] = optimiser.gridFmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
         all_errors{snr_idx, end}(itr) = sqrt((pos_tx(1,1)-optCoord(1))^2 + (pos_tx(1,2)-optCoord(2))^2);
     end
 end

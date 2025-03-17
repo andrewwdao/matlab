@@ -59,9 +59,9 @@ end
 %% Find the Maximum Likelihood (ML) estimate of the transmitter position
 % nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
-optimiser = gridOptimiser();
+optimiser = Optimisers();
 objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
-[optCoord, L_peak] = optimiser.fmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
+[optCoord, L_peak] = optimiser.gridFmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
 progressbar('end');  % This will display the total runtime
 progressbar('reset', 1); % Reset progress bar
 %% additional function to plot the 3D map
