@@ -56,7 +56,7 @@ for i = 1:nvar_doa
         case 'opt'
             modeString = [DOA_MODE, ' (', num2str(OPT_GRID_DENSITY), ' grid)'];
         otherwise
-            modeString = [DOA_MODE];
+            modeString = DOA_MODE;
     end
     legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA for ', num2str(NUM_RX_DOA), ' RXs by ', modeString];
 end
