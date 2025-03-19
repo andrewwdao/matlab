@@ -5,7 +5,7 @@ classdef DoAEstimator < handle
         steer_vect          % Precomputed steering vectors for sweeping angles
         estimation_mode = 'sweep'  % Default mode: 'sweep', 'opt', or 'both'
         grid_points = 10   % Number of grid points for optimization
-        aoa_act             % Actual AoA for error calculation
+        aoa_act=0             % Actual AoA for error calculation
     end
     
     methods
@@ -17,7 +17,9 @@ classdef DoAEstimator < handle
             %   estimation_mode (optional): 'sweep', 'opt', or 'both'
             obj.antenna_array = antenna_array;
             obj.sweeping_angle = sweeping_angle;
-            obj.aoa_act = aoa_act;
+            if nargin >= 3
+                obj.aoa_act = aoa_act;
+            end
             if nargin >= 4
                 obj.estimation_mode = estimation_mode;
             end

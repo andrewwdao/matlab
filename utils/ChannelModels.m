@@ -114,6 +114,37 @@ classdef ChannelModels < handle
             % Alternatively:
             CRB = 3/2 * nPower * lambda^2 / (tx_sig * tx_sig') / (element_num-1) / element_num / (2*element_num-1) / (pi*lambda/2*cosd(aoa_act)).^2;
         end
+%% ---------------------- Generate received signal --------------------------
+        function [sig_tx, e_avg] = generateNuisanceSignal(~, fc, pow_tx, time_period, time_vect, time_inst_num, FIXED_TRANS_ENERGY)
+            % --- Generate nuisance transmitted signal with random phase
+            % Only the frequency and power are known, the phase is random
+            % Inputs:
+            %   fc - Carrier frequency.
+            %   pow_tx - Transmitted power.
+            %   time_period - Time period.
+            %   time_vect - Time vector.
+            %   time_inst_num - Number of time instances.
+            %   FIXED_TRANS_ENERGY - Flag for Fixed transmitted energy.
+            % Outputs:
+            %   sig_tx - Transmitted signal.
+            %   e_avg - Average energy of the transmitted signal.
+            rng('shuffle');                                             % Ensure randomness on each run
+            random_phases = 2*pi*rand(1, time_inst_num);                % Random phase for each time instance
+            random_amp_variations = 0.2*randn(1, time_inst_num) + 1;    % Minor amplitude variations
+            sig_tx = zeros(1, length(time_vect));
+            for i = 1:time_inst_num
+                % Get sample indices for this time instance
+                start_idx = round((i-1)*length(time_vect)/time_inst_num) + 1;
+                end_idx = round(i*length(time_vect)/time_inst_num);
+                
+                % Create signal with known frequency and power but random phase
+                sig_tx(start_idx:end_idx) = sqrt(pow_tx) * random_amp_variations(i) * ...
+                    exp(1j * (2*pi*fc*time_vect(start_idx:end_idx) + random_phases(i)));
+            end
+            
+            % Calculate average energy of the signal
+            e_avg = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * mean(abs(sig_tx).^2) * time_period;
+        end
 
 %% ---------------------- Generate received signal --------------------------
         function [nPower, y_centralised] = generateReceivedSignal(obj, sig_tx, pos_tx, pos_rx, aoa_act, e_avg, snr_db, L_d0, d0, alpha, element_num, element_spacing, lambda)

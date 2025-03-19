@@ -1,7 +1,7 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION = 9000;                    % Number of Monte Carlo iterations
+ITERATION = 10;                    % Number of Monte Carlo iterations
 RANDOMISE_RX = false;                % Randomise RX positions and AoA
 CAP_ERROR = false;                   % Cap error values at the maximum theoretical value
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
@@ -25,6 +25,7 @@ map2d = Map2D();
 metric = Metric();
 l4c = Likelihood4Coordinates();
 optimiser = Optimisers();
+algo = Algorithms(l4c, optimiser, map2d);
 %% Transmitter, receiver positions and angles
 area_size = 100;
 pos_tx = [50, 50];
@@ -48,25 +49,7 @@ element_spacing = 0.5 * lambda;             % Element spacing (ULA)
 sweeping_angle = -90:DOA_RESOLUTION:90;         % Angle range for finding the AoA
 
 % Generate nuisance transmitted signal with random phase
-% Only the frequency and power are known
-rng('shuffle');                             % Ensure randomness on each run
-random_phases = 2*pi*rand(1, TIME_INST_NUM); % Random phase for each time instance
-random_amp_variations = 0.2*randn(1, TIME_INST_NUM) + 1; % Minor amplitude variations
-
-% Construct the nuisance signal
-s_t = zeros(1, length(t));
-for i = 1:TIME_INST_NUM
-    % Get sample indices for this time instance
-    start_idx = round((i-1)*length(t)/TIME_INST_NUM) + 1;
-    end_idx = round(i*length(t)/TIME_INST_NUM);
-    
-    % Create signal with known frequency and power but random phase
-    s_t(start_idx:end_idx) = sqrt(P_t) * random_amp_variations(i) * ...
-        exp(1j * (2*pi*fc*t(start_idx:end_idx) + random_phases(i)));
-end
-
-% Calculate average energy of the signal
-e_avg = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * mean(abs(s_t).^2) * T;
+[s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY);
 %% === Define the methods to test for performance
 doa_est_methods = struct(...
     'name', {'BF'}, ... % estimator methods
@@ -173,7 +156,7 @@ for i = 1:nvar_doa
         case 'opt'
             modeString = [DOA_MODE, ' (', num2str(OPT_GRID_DENSITY), ' grid)'];
         otherwise
-            modeString = [DOA_MODE];
+            modeString = DOA_MODE;
     end
     legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA for ', num2str(NUM_RX_DOA), ' RXs by ', modeString];
 end

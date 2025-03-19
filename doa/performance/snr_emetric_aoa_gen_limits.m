@@ -47,8 +47,10 @@ s_t = sqrt(P_t(1)) .* exp(1j * 2 * pi * sub_carrier(1) * t);
 % Calculate average energy of the signal
 avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * (avg_amp_gain^2 * P_t(1) * T * Fs);
 %% === Define the methods to test for performance
-doa_est_method = 'MUSIC';
-extra_args = {1};
+doa_est_methods = struct(...
+    'name', {'BF','MUSIC'}, ... % estimator methods
+    'extra_args', {{}, {1}} ...        % extra args required for specific type of estimator
+);
 num_legend = length(ABS_ANGLE_LIM);         % Number of angle limit cases
 progressbar('reset', ITERATION*n_param*num_legend); % Reset progress bar
 %% Initialise arrays
@@ -72,31 +74,7 @@ for angle_idx = 1:num_legend
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         %% --- Location and AoA Refresh for each iteration
-        [pos_rx, aoa_act, rot_abs] = map2d.genRandomPos(area_size, pos_tx, RX_NUM, SAFETY_DISTANCE, current_angle_limit, RESOLUTION);
-        % Generate random RX positions ensuring minimum distance from TX
-        % pos_rx = zeros(RX_NUM, 2);
-        % for i = 1:RX_NUM
-        %     valid_position = false;
-        %     while ~valid_position
-        %         % Generate random position
-        %         pos_rx(i,:) = area_size * rand(1, 2);
-
-        %         % Check if it's far enough from TX
-        %         if sqrt(sum((pos_tx - pos_rx(i,:)).^2)) >= SAFETY_DISTANCE
-        %             valid_position = true;
-        %         end
-        %     end
-        % end
-        
-        % % Generate random true Angle of Arrival within the current angle limit
-        % aoa_act = -current_angle_limit + RESOLUTION * randi([0, 2*current_angle_limit/RESOLUTION], RX_NUM, 1);
-        % angle_rx_tx_abs = zeros(RX_NUM, 1);
-        % for i = 1:RX_NUM
-        %     % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
-        %     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
-        % end
-        % rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
-        
+        [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, RX_NUM, true, SAFETY_DISTANCE, current_angle_limit, RESOLUTION);
         %% === Loop through each SNR value
         for snr_idx=1:n_param
             progressbar('step'); % Update progress bar
@@ -115,7 +93,7 @@ for angle_idx = 1:num_legend
             rays_abs = cell(RX_NUM, 1);
             for rx_idx = 1:RX_NUM
                 estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx), DOA_MODE, OPT_GRID_DENSITY);
-                aoa_rel_est(rx_idx) = estimator.(doa_est_method)(y_centralised{rx_idx}, extra_args{:}).aoa_est;
+                aoa_rel_est(rx_idx) = estimator.(doa_est_methods(1).name)(y_centralised{rx_idx}, doa_est_methods(1).extra_args{:}).aoa_est;
                 rays_abs{rx_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx));
             end
             
@@ -179,7 +157,7 @@ end
 annotStrings = {
     ['RX number: ', num2str(RX_NUM)], ...    
     ['ULA elements: ', num2str(ELEMENT_NUM)], ...
-    ['Method: ', strrep(doa_est_method, '_', ' ')], ...
+    ['Method: ', strrep(doa_est_methods(1).name, '_', ' ')], ...
     modeString, ...
     ['Error Metric: ', metric_label]
 };
