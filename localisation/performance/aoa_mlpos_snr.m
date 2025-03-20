@@ -1,7 +1,7 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION =9000;                       % Number of Monte Carlo iterations
+ITERATION =1;                       % Number of Monte Carlo iterations
 RANDOMISE_RX = false;               % Randomise RX positions and AoA
 CAP_ERROR = true;                   % Cap error values at the maximum theoretical value
 INCLUDE_CAPPED = false;             % Include capped values in the output errors
@@ -165,12 +165,13 @@ for idx =1:num_legend
     fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend_name{idx}, capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
 end
 rx_type = {'fixed', 'randomised'};
-cap_error = {'uncapped', 'capped'};
+cap_error = {'uncap', 'cap'};
+excluded = {' excluded', ''};
 annotStrings = {
     ['RX Type: ', rx_type{1 + RANDOMISE_RX}], ...
     ['ULA elements: ', num2str(ELEMENT_NUM)], ...
     ['Time instances: ', num2str(TIME_INST_NUM)], ...
-    ['Error Metric: ', metric_label, ' (', cap_error{1+CAP_ERROR},')']
+    ['Error Metric: ', metric_label, ' (', cap_error{1+CAP_ERROR}, excluded{1+INCLUDE_CAPPED},')']
 };
 
 % Plot the error metric
