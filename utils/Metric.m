@@ -310,32 +310,105 @@ classdef Metric < handle
                     'EdgeColor', 'black');
             end
         end
+
         
-        function cap_errors = capErrorValues(~, errors, max_value)
-            % CAPERRORVALUES Cap error values to a maximum value
-            %   cap_errors = CAPERRORVALUES(errors, max_value) caps error values in the 
-            %   input to the specified maximum value
+        function [result, cnt_capped, cnt_total] = capArrayValues(~, x, max_val, INCLUDE_CAPPED)
+            % capArrayValues Cap values that are invalid or exceed maximum
+            % Caps values in the input array that are NaN, Inf, or greater than the
+            % specified maximum value.
+            %
+            % Syntax:
+            %   [result, cnt_capped, cnt_total] = capArrayValues(x, max_val)
+            %
+            % Inputs:
+            %   x       - Input array of any dimension
+            %   max_val - Maximum value threshold
+            %
+            % Outputs:
+            %   result     - Array with capped values
+            %   cnt_capped - Number of elements that were capped
+            %   cnt_total  - Total number of elements in the input array
+            %
+            % Example INCLUDE_CAPPED=true:
+            %   [capped_data, num_capped, total] = capArrayValues([1, 5, NaN, Inf], 3);
+            %   Returns: [1, 3, 3, 3]
+            %   num_capped = 2, total = 4
+            % Example with INCLUDE_CAPPED=false:
+            %   [capped_data, num_capped, total] = capArrayValues([1, 5, NaN, Inf], 3, false);
+            %   Returns: [1]
+            %   num_capped = 2, total = 4
+            invalid_idx = isnan(x) | isinf(x) | (x > max_val);
+            cnt_capped = sum(invalid_idx);
+            cnt_total = numel(x);
+            if INCLUDE_CAPPED
+                % Keep all values but cap the invalid ones
+                result = x;
+                result(invalid_idx) = max_val;
+            else
+                % Exclude the invalid values completely
+                result = x(~invalid_idx);
+            end
+        end
+        
+        function result = capErrorValues(obj, errors, max_value, INCLUDE_CAPPED)
+            % CAPERRORVALUES Cap error values and track capping statistics per method
+            %   result = CAPERRORVALUES(errors, max_value) caps error values and returns
+            %   statistics organized by method
             %
             %   Input:
-            %     errors: Input error values
+            %     errors: Input error values (cell array or array)
             %     max_value: Maximum allowed value
             %   Output:
-            %     cap_errors: Capped error values
+            %     result: Structure containing:
+            %       .values - Capped error values (same structure as input)
+            %       .cnt_capped - Cell array of capped counts per method or scalar value
+            %       .cnt_total - Cell array of total counts per method or scalar value
+            %       .percentage - Cell array of percentages per method or scalar value
+            
+            % Default behavior: include capped values
+            if nargin < 4
+                INCLUDE_CAPPED = true;
+            end
             
             if iscell(errors)
-                cap_errors = errors;
                 [rows, cols] = size(errors);
                 
-                for i = 1:rows
-                    for j = 1:cols
-                        invalid_idx = isnan(errors{i,j}) | isinf(errors{i,j}) | (errors{i,j} > max_value);
-                        cap_errors{i,j}(invalid_idx) = max_value;
-                    end
-                end
+                % Process each cell element
+                [errors_capped, capped_counts, total_counts] = cellfun(@(x) obj.capArrayValues(x, max_value, INCLUDE_CAPPED), ...
+                    errors, 'UniformOutput', false);
+
+                % Convert cell outputs to numeric matrices
+                cnt_capped_detail = reshape(cell2mat(capped_counts), rows, cols);
+                cnt_total_detail = reshape(cell2mat(total_counts), rows, cols);
+                
+                % Vectorized method-specific totals
+                capped_sums = sum(cnt_capped_detail, 1);  % Sum each column
+                total_sums = sum(cnt_total_detail, 1);    % Sum each column
+                percentages = (capped_sums ./ total_sums) * 100;  % Calculate all percentages at once
+
+                % Convert to cell arrays for output and Assign results
+                result.cnt_capped = num2cell(capped_sums);
+                result.cnt_total = num2cell(total_sums);
+                result.percentage = num2cell(percentages);
+                result.values = errors_capped;
             else
-                cap_errors = errors;
+                % Handle non-cell input (standard behavior)
                 invalid_idx = isnan(errors) | isinf(errors) | (errors > max_value);
-                cap_errors(invalid_idx) = max_value;
+
+                if INCLUDE_CAPPED
+                    % Keep all values but cap the invalid ones
+                    errors_capped = errors;
+                    errors_capped(invalid_idx) = max_value;
+                else
+                    % Exclude the invalid values completely
+                    errors_capped = errors(~invalid_idx);
+                end
+
+                % Track statistics for array input
+                result.values = errors_capped;
+                result.cnt_capped = sum(invalid_idx(:));
+                result.cnt_total = numel(errors);
+                result.percentage = (result.cnt_capped / result.cnt_total) * 100;
             end
         end
     end

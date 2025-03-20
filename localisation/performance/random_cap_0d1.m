@@ -1,9 +1,10 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION =500;                      % Number of Monte Carlo iterations
+ITERATION =9000;                       % Number of Monte Carlo iterations
 RANDOMISE_RX = true;               % Randomise RX positions and AoA
-CAP_ERROR = true;                  % Cap error values at the maximum theoretical value
+CAP_ERROR = true;                   % Cap error values at the maximum theoretical value
+INCLUDE_CAPPED = true;             % Include capped values in the output errors
 SAVE_METRICS = true;               % Save metrics to file
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 0.1;               % Angle resolution (degrees)
@@ -113,7 +114,8 @@ end
 % Cap errors at the maximum theoretical value
 if CAP_ERROR
     max_possible_error = sqrt(2) * area_size;
-    all_errors = metric.capErrorValues(all_errors, max_possible_error);
+    capped_errors = metric.capErrorValues(all_errors, max_possible_error, INCLUDE_CAPPED);
+    all_errors = capped_errors.values;
 end
 
 percentiles = struct( ...
@@ -159,6 +161,9 @@ for ml_idx = 1:nvar_mlpos
     legend_name{nvar_doa+ml_idx} = ['MLpos of ' num2str(NUM_RX_ML(ml_idx)) ' RXs from 2 DoA initial'];
     legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos of ' num2str(NUM_RX_ML(ml_idx)) ' RXs from centroid'];
 end
+for idx =1:num_legend
+    fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend_name{idx}, capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
+end
 rx_type = {'fixed', 'randomised'};
 cap_error = {'uncapped', 'capped'};
 annotStrings = {
@@ -192,12 +197,6 @@ OUTPUT_PATH = 'data';
     metric_filename = [timestamp '_' mfilename '.mat'];
     
     % Save the data including annotation strings and display names
-    save( ...
-        fullfile(OUTPUT_PATH, metric_filename), ...
-        'NUM_RX_DOA', 'doa_est_methods', 'DOA_MODE', 'DOA_RESOLUTION', ...
-        'NUM_RX_ML', 'RANDOMISE_RX', 'ELEMENT_NUM', 'TIME_INST_NUM',...
-        'SNR_dB', 'plot_data', 'all_errors','CAP_ERROR', 'ITERATION', ...
-        'legend_name', 'METRIC_TO_PLOT', 'num_legend', 'percentiles', ...
-        'area_size', 'metric_label', 'annotStrings');
+    save(fullfile(OUTPUT_PATH, metric_filename));
     fprintf('Metrics saved to /data/%s\n', metric_filename);
 end

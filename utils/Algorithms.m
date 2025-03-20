@@ -107,10 +107,10 @@ classdef Algorithms < handle
             %   error        - Distance error from true position (if pos_act provided)
             
             % Create objective function (convert maximization to minimization)
-            obj_to_minimise = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised, element_num, nPower);
+            obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             
             % Run grid-based optimization
-            [pos_est, ~] = obj.optimiser.gridFmincon2D(obj_to_minimise, {}, ...
+            [pos_est, ~] = obj.optimiser.gridFmincon2D(obj2min, {}, ...
                 lb, ub, grid_density);
             
             % Calculate error if true position is provided
@@ -153,10 +153,10 @@ classdef Algorithms < handle
             % end
 
             % --- Create objective function (convert maximization to minimization)
-            objective_to_maximize = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
+            obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             % --- Calculate the aoa intersection point and the error distance
             % aoa_intersect = obj.calIntersect(rays_abs{1, 1}, rays_abs{2, 1});
-            [pos_est, ~] = obj.optimiser.findMinWithInitialPoint(objective_to_maximize, {}, lb, ub, [aoa_intersect.x, aoa_intersect.y]);
+            [pos_est, ~] = obj.optimiser.findMinWithInitialPoint(obj2min, {}, lb, ub, [aoa_intersect.x, aoa_intersect.y]);
             
             % Calculate error if true position is provided
             if nargin > 9 && ~isempty(pos_act)
@@ -236,9 +236,9 @@ classdef Algorithms < handle
             end
 
             % Create objective function (convert maximization to minimization)
-            objective_to_maximize = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
+            obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             % --- Use centroid as initial point for ML optimization
-            [pos_est, ~] = obj.optimiser.findMinWithInitialPoint(objective_to_maximize, {}, lb, ub, centroid);
+            [pos_est, ~] = obj.optimiser.findMinWithInitialPoint(obj2min, {}, lb, ub, centroid);
             
             % Calculate error if true position is provided
             if nargin > 9 && ~isempty(pos_act)
