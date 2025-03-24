@@ -1,0 +1,5 @@
+Method 1 (BF DoA for 2 RXs by sweep (0.1\circ res)): 7374/144000 values capped (5.12%)
+Method 2 (MLpos of 3 RXs from 2 DoA initial): 0/144000 values capped (0.00%)
+Method 3 (MLpos of 10 RXs from 2 DoA initial): 0/144000 values capped (0.00%)
+Method 4 (MLpos of 3 RXs from centroid): 0/144000 values capped (0.00%)
+Method 5 (MLpos of 10 RXs from centroid): 0/144000 values capped (0.00%)
