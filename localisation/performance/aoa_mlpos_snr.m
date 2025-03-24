@@ -161,9 +161,7 @@ for ml_idx = 1:nvar_mlpos
     legend_name{nvar_doa+ml_idx} = ['MLpos of ' num2str(NUM_RX_ML(ml_idx)) ' RXs from 2 DoA initial'];
     legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos of ' num2str(NUM_RX_ML(ml_idx)) ' RXs from centroid'];
 end
-for idx =1:num_legend
-    fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend_name{idx}, capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
-end
+
 rx_type = {'fixed', 'randomised'};
 cap_error = {'uncap', 'cap'};
 excluded = {' excluded', ''};
@@ -174,6 +172,12 @@ annotStrings = {
     ['Error Metric: ', metric_label, ' (', cap_error{1+CAP_ERROR}, excluded{1+INCLUDE_CAPPED},')']
 };
 
+% Display capped error values
+if CAP_ERROR
+    for idx =1:num_legend
+        fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend_name{idx}, capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
+    end
+end
 % Plot the error metric
 metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'DisplayNames', legend_name, ...

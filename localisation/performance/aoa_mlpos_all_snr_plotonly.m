@@ -3,6 +3,12 @@ clear; clc; close all;
 load('data/20250320_171313_aoa_mlpos_snr.mat');
 
 %% === Prepare data and plotting
+% Display capped error values
+if CAP_ERROR
+    for idx =1:num_legend
+        fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend_name{idx}, capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
+    end
+end
 % Plot the error metric
 metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'DisplayNames', legend_name, ...
