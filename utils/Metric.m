@@ -462,11 +462,11 @@ classdef Metric < handle
                 % Create detailed title with statistics
                 if ~isempty(cap_info)
                 cap_percentage = cap_info.percentage{method_idx};
-                title_text = sprintf('%s\nMean: %.1f m, Median: %.1f m, RMSE: %.1f m\nStd: %.1f m, IQR: %.1f m, Capped: %.1f%%', ...
-                    legend_names{method_idx}, mean_error, median_error, rmse, std_error, iqr_value, cap_percentage);
+                title_text = sprintf('%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m, Capped: %.1f%%', ...
+                    legend_names{method_idx}, mean_error, std_error, median_error, rmse, iqr_value, cap_percentage);
                 else
-                title_text = sprintf('%s\nMean: %.1f m, Median: %.1f m, RMSE: %.1f m\nStd: %.1f m, IQR: %.1f m', ...
-                    legend_names{method_idx}, mean_error, median_error, rmse, std_error, iqr_value);
+                title_text = sprintf('%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m, Capped: %.1f%%', ...
+                    legend_names{method_idx}, mean_error, std_error, median_error, rmse, iqr_value);
                 end
                 title(title_text);
                 
