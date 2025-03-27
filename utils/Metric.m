@@ -445,8 +445,14 @@ classdef Metric < handle
                 
                 % Add KDE curve if requested
                 if show_kde
-                [f, xi] = ksdensity(errors, 'Support', 'positive');
-                plot(xi, f, 'LineWidth', 2, 'Color', [method_color*0.7]);
+                    % Add a small epsilon to zero values
+                    epsilon = 1e-10; % Small enough to be negligible for your position error scale
+                    adjusted_errors = errors;
+                    adjusted_errors(adjusted_errors == 0) = epsilon;
+                    
+                    % Now all values are positive
+                    [f, xi] = ksdensity(adjusted_errors, 'Support', 'positive');
+                    plot(xi, f, 'LineWidth', 2, 'Color', method_color*0.7);
                 end
                 
                 % % Add optimal error line at 0
@@ -498,7 +504,13 @@ classdef Metric < handle
             ref_errors = all_errors{snr_idx, compare_method};
             
             % Calculate KDE for reference method
-            [f_ref, xi_ref] = ksdensity(ref_errors, 'Support', 'positive');
+            % Add a small epsilon to zero values
+            epsilon = 1e-10; % Small enough to be negligible for your position error scale
+            adjusted_ref_errors = ref_errors;
+            adjusted_ref_errors(adjusted_ref_errors == 0) = epsilon;
+            
+            % Now all values are positive
+            [f_ref, xi_ref] = ksdensity(adjusted_ref_errors, 'Support', 'positive');
             
             % Plot reference KDE
             plot(xi_ref, f_ref, 'LineWidth', 2, 'Color', 'k', 'DisplayName', legend_names{compare_method}); 
@@ -524,7 +536,12 @@ classdef Metric < handle
             end
             
             % Get errors and calculate KDE
+            % Add a small epsilon to zero values
+            epsilon = 1e-10; % Small enough to be negligible for your position error scale
             curr_errors = all_errors{snr_idx, method_idx};
+            curr_errors(curr_errors == 0) = epsilon;
+            
+            % Now all values are positive
             [f_curr, xi_curr] = ksdensity(curr_errors, 'Support', 'positive');
             % Plot KDE
             plot(xi_curr, f_curr, 'LineWidth', 2);
@@ -614,7 +631,7 @@ classdef Metric < handle
                 result = x(~invalid_idx);
                 % If all values were excluded, set result to 0
                 if isempty(result)
-                    result = 0.001;  % Small value to avoid division by zero
+                    result = max_val;  % Set to max value to indicate all values were capped
                 end
             end
         end
