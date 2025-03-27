@@ -24,7 +24,7 @@ NUM_RX_ML = 3:7:10;                 % Additional receiver counts for ML optimiza
 nvar_mlpos = length(NUM_RX_ML);     % Number of variants for ML optimization
 %% Initialise classes
 channel = ChannelModels();
-map2d = Map2D();
+map2d = Map2D([10,10], [90, 90], max(NUM_RX_ML));
 metric = Metric();
 l4c = Likelihood4Coordinates();
 optimiser = Optimisers();

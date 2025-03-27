@@ -2,32 +2,103 @@
 classdef Map2D < handle
     properties
         RX_POS = [
-            0, 0;    % 1 - Bottom-left corner
-            80, 100; % 12 - Top edge
-            20, 0;   % 2 - Bottom edge
-            100, 20; % 7 - Right edge
-            0, 80;   % 17 - Left edge
-            60, 100; % 13 - Top edge
-            40, 0;   % 3 - Bottom edge
-            100, 40; % 8 - Right edge
-            0, 60;   % 18 - Left edge
-            60, 0;   % 4 - Bottom edge
-            100, 100;% 11 - Top-right corner
-            100, 60; % 9 - Right edge
-            0, 40;   % 19 - Left edge
-            80, 0;   % 5 - Bottom edge
-            40, 100; % 14 - Top edge
-            100, 80; % 10 - Right edge
-            0, 100;  % 16 - Top-left corner
-            0, 20;   % 20 - Left edge
-            100, 0;  % 6 - Bottom-right corner
-            20, 100; % 15 - Top edge
-            0, 10;   % 21 - Extra point on left edge
-        ];
+            0, 0; % 1 - Bottom-left corner
+            100, 0; % 2 - Bottom-right corner
+            100, 100; % 3 - Top-right corner
+            0,100; % 4 - Top-left corner
+            0, 50; % 5 - Left edge
+            50, 0; % 6 - Bottom edge
+            100, 50; % 7 - Right edge
+            50, 100; % 8 - Top edge
+            25,100; % 9 - Top edge
+            0, 75; % 10 - Left edge
+            0, 25; % 11 - Left edge
+            25,0; % 12 - Bottom edge
+            75,0; % 13 - Bottom edge
+            100, 25; % 14 - Right edge
+            100, 75; % 15 - Right edge
+        ]
     end
     
     methods
         function obj = Map2D(varargin)
+            if nargin == 3
+                obj.RX_POS = obj.genSquarePerimeterNodes(varargin{1}, varargin{2}, varargin{3});
+            end
+        end
+        function RX_POS = genSquarePerimeterNodes(~, start_point, end_point, num_positions)
+            % Generate positions in a zigzag pattern around a square perimeter
+            % Points are placed at corners first, then midpoints of edges, then recursively subdivide
+            
+            % Extract square coordinates
+            x1 = start_point(1);
+            y1 = start_point(2);
+            x2 = end_point(1);
+            y2 = end_point(2);
+            
+            % Initialize with empty array
+            RX_POS = zeros(num_positions, 2);
+            
+            % Start with the four corners in specific order
+            corners = [
+                x1, y1;     % Bottom-left (start point)
+                x2, y1;     % Bottom-right
+                x2, y2;     % Top-right
+                x1, y2      % Top-left
+            ];
+            
+            % Add the corners as the first points
+            num_corners = size(corners, 1);
+            RX_POS(1:num_corners, :) = corners;
+            
+            % Define the four edges (in order: left, bottom, right, top)
+            edges = [
+                [x1, y1; x1, y2];  % Left edge
+                [x1, y1; x2, y1];  % Bottom edge
+                [x2, y1; x2, y2];  % Right edge
+                [x1, y2; x2, y2]   % Top edge
+            ];
+            
+            % Estimate maximum number of edges needed (conservative estimate)
+            max_edges = 2 * (num_positions - num_corners) + 4;
+            
+            % Queue to store edges to be subdivided
+            edge_queue = cell(1, max_edges);
+            queue_size = 4;
+            for i = 1:4
+                edge_queue{i} = edges(i*2-1:i*2, :);
+            end
+            
+            % Current point index
+            point_idx = num_corners + 1;
+            
+            % Process each edge in the queue until we have enough points
+            current_edge = 1;
+            while point_idx <= num_positions && current_edge <= queue_size
+                % Get current edge
+                edge = edge_queue{current_edge};
+                
+                % Calculate midpoint
+                midpoint = [(edge(1,1) + edge(2,1))/2, (edge(1,2) + edge(2,2))/2];
+                
+                % Add midpoint to the positions
+                RX_POS(point_idx, :) = midpoint;
+                point_idx = point_idx + 1;
+                
+                % Split current edge into two new edges and add to queue
+                if point_idx <= num_positions
+                    queue_size = queue_size + 1;
+                    edge_queue{queue_size} = [edge(1,:); midpoint];
+                    queue_size = queue_size + 1;
+                    edge_queue{queue_size} = [midpoint; edge(2,:)];
+                end
+                
+                % Move to next edge in queue
+                current_edge = current_edge + 1;
+            end
+            
+            % Trim to requested number of positions
+            RX_POS = RX_POS(1:num_positions, :);
         end
 
         function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell)

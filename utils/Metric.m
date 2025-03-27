@@ -465,7 +465,7 @@ classdef Metric < handle
                 title_text = sprintf('%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m, Capped: %.1f%%', ...
                     legend_names{method_idx}, mean_error, std_error, median_error, rmse, iqr_value, cap_percentage);
                 else
-                title_text = sprintf('%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m, Capped: %.1f%%', ...
+                title_text = sprintf('%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m', ...
                     legend_names{method_idx}, mean_error, std_error, median_error, rmse, iqr_value);
                 end
                 title(title_text);
@@ -630,9 +630,9 @@ classdef Metric < handle
                 % Exclude the invalid values completely
                 result = x(~invalid_idx);
                 % If all values were excluded, set result to 0
-                if isempty(result)
-                    result = max_val;  % Set to max value to indicate all values were capped
-                end
+                % if isempty(result)
+                %     result = max_val;  % Set to max value to indicate all values were capped
+                % end
             end
         end
         

@@ -13,7 +13,7 @@ FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
 OPT_GRID_DENSITY = 5; % Define a coarse grid for initial guesses
 RX_NUM = 10;                        % Number of receivers
-RANDOMISE_RX = true;                % Randomise RX positions and AoA
+RANDOMISE_RX = false;                % Randomise RX positions and AoA
 SAFETY_DISTANCE = 2;                % Minimum distance between TX and RX (meters)
 % Transmitter, receiver positions angles
 area_size = 100;
@@ -28,7 +28,7 @@ progressbar('minimalupdateinterval', 0); % Set a smaller interval at the beginni
 SHOW_LIMITS = false; % Show the detecting limits of the RXs (with known limitation)
 SHOW_EXTRA = true; % Show extra information such as the AoA and the intersection point
 %% Initialise classes
-map2d = Map2D();
+map2d = Map2D([10,10], [90, 90], RX_NUM);
 %% Compute absolute angles from each Rx to Tx and corresponding rotations
 [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, RX_NUM, RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
 %% Signal and channel configurations
