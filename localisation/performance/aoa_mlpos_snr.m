@@ -1,10 +1,11 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION =1;                       % Number of Monte Carlo iterations
+ITERATION =3000;                       % Number of Monte Carlo iterations
 RANDOMISE_RX = false;               % Randomise RX positions and AoA
 CAP_ERROR = true;                   % Cap error values at the maximum theoretical value
-INCLUDE_CAPPED = false;             % Include capped values in the output errors
+INCLUDE_CAPPED = false;             % Include capped values in the output errors, only vaid if CAP_ERROR is true
+COMPARE_EPDF_IN_SUBPLOT = true;     % Compare empirical PDFs in subplots
 SAVE_METRICS = true;               % Save metrics to file
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 0.1;               % Angle resolution (degrees)
@@ -46,6 +47,9 @@ P_t = 1;                                    % W - Transmit signal power (known)
 Fs = 2 * fc;                                % Sample frequency, enough for the signal
 T = TIME_INST_NUM/Fs;                       % Period of transmission
 t = 0:1/Fs:(T-1/Fs);                        % Time vector for the signal
+if ~CAP_ERROR
+    INCLUDE_CAPPED = true;                 % Disable capped values if we're not capping errors
+end
 % --- Receive Antenna elements characteristics
 element_spacing = 0.5 * lambda;             % Element spacing (ULA)
 sweeping_angle = -90:DOA_RESOLUTION:90;         % Angle range for finding the AoA
@@ -149,21 +153,21 @@ legend_name = cell(1, num_legend);
 for i = 1:nvar_doa
     switch DOA_MODE
         case 'sweep'
-            modeString = [DOA_MODE, ' (', num2str(DOA_RESOLUTION), '\circ res)'];
+            modeString = [DOA_MODE, ' ', num2str(DOA_RESOLUTION), '\circ res)'];
         case 'opt'
-            modeString = [DOA_MODE, ' (', num2str(OPT_GRID_DENSITY), ' grid)'];
+            modeString = [DOA_MODE, ' ', num2str(OPT_GRID_DENSITY), ' grid)'];
         otherwise
             modeString = DOA_MODE;
     end
-    legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA for ', num2str(NUM_RX_DOA), ' RXs by ', modeString];
+    legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA triage (', num2str(NUM_RX_DOA), ' RXs ', modeString];
 end
 for ml_idx = 1:nvar_mlpos
-    legend_name{nvar_doa+ml_idx} = ['MLpos of ' num2str(NUM_RX_ML(ml_idx)) ' RXs from 2 DoA initial'];
-    legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos of ' num2str(NUM_RX_ML(ml_idx)) ' RXs from centroid'];
+    legend_name{nvar_doa+ml_idx} = ['MLpos ' num2str(NUM_RX_ML(ml_idx)) ' RXs (triage initial)'];
+    legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos ' num2str(NUM_RX_ML(ml_idx)) ' RXs (centroid initial)'];
 end
 
 rx_type = {'fixed', 'randomised'};
-cap_error = {'uncap', 'cap'};
+cap_error = {'full', 'capped'};
 excluded = {' excluded', ''};
 annotStrings = {
     ['RX Type: ', rx_type{1 + RANDOMISE_RX}], ...
@@ -188,6 +192,32 @@ metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
     'YLabel', [metric_label, ' Error [m]'], ...
     'ShowAnnotation', true, ...
     'AnnotationStrings', annotStrings);
+
+%% Plot empirical PDF of errors for selected SNR values
+% Select low, medium, and high SNR indices to plot
+snr_indices = [1, ceil(nvar_snr/2), nvar_snr];
+
+% Get SNR values for the selected indices
+snr_values = mean(SNR_dB, 2);
+
+% Add a figure title
+pdf_title = ['Empirical PDF of Position Estimation Errors by Method (',rx_type{1 + RANDOMISE_RX},' RXs, ', num2str(ITERATION), ' iterations, ', cap_error{1+CAP_ERROR}, excluded{1+INCLUDE_CAPPED},')'];
+
+% Call the enhanced plot_epdf method from the Metric class
+if CAP_ERROR
+    metric.plot_epdf(all_errors, legend_name, snr_indices, pdf_title, ...
+                    'SNRValues', snr_values, ...
+                    'CapInfo', capped_errors, ...
+                    'ShowKDE', true, ...
+                    'CompareMethod', 1, ... % Compare all methods to DoA intersection
+                    'CompareInSubplot', COMPARE_EPDF_IN_SUBPLOT);
+else
+    metric.plot_epdf(all_errors, legend_name, snr_indices, pdf_title, ...
+                    'SNRValues', snr_values, ...
+                    'ShowKDE', true, ...
+                    'CompareMethod', 1, ... % Compare all methods to DoA intersection
+                    'CompareInSubplot', COMPARE_EPDF_IN_SUBPLOT);
+end
 
 %% Save metrics to file if we have enough iterations for meaningful statistics
 if SAVE_METRICS

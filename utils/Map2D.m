@@ -2,19 +2,28 @@
 classdef Map2D < handle
     properties
         RX_POS = [
-            21, 51; % 1
-            80, 51; % 2
-            50, 80; % 3
-            50, 20; % 4
-            20, 20; % 5
-            80, 80; % 6
-            20, 80; % 7
-            80, 20; % 8
-            35, 20; % 9
-            65, 20; % 10
-            35, 80; % 11
-            65, 80; % 12
-            ];
+            0, 0;    % 1 - Bottom-left corner
+            80, 100; % 12 - Top edge
+            20, 0;   % 2 - Bottom edge
+            100, 20; % 7 - Right edge
+            0, 80;   % 17 - Left edge
+            60, 100; % 13 - Top edge
+            40, 0;   % 3 - Bottom edge
+            100, 40; % 8 - Right edge
+            0, 60;   % 18 - Left edge
+            60, 0;   % 4 - Bottom edge
+            100, 100;% 11 - Top-right corner
+            100, 60; % 9 - Right edge
+            0, 40;   % 19 - Left edge
+            80, 0;   % 5 - Bottom edge
+            40, 100; % 14 - Top edge
+            100, 80; % 10 - Right edge
+            0, 100;  % 16 - Top-left corner
+            0, 20;   % 20 - Left edge
+            100, 0;  % 6 - Bottom-right corner
+            20, 100; % 15 - Top edge
+            0, 10;   % 21 - Extra point on left edge
+        ];
     end
     
     methods

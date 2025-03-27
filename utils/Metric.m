@@ -311,6 +311,271 @@ classdef Metric < handle
             end
         end
 
+        function plot_epdf(obj, all_errors, legend_names, snr_indices, figure_title, varargin)
+            % PLOT_EPDF Plot empirical PDF of position errors for different methods
+            %
+            % Visualization of error distributions with additional statistical metrics
+            % for comparing estimation methods.
+            %
+            % Parameters:
+            %   all_errors - Cell array of error values from Monte Carlo simulation
+            %   legend_names - Cell array of method names
+            %   snr_indices - SNR indices to plot (default = [1, ceil(end/2), end])
+            %   figure_title - Title for the figure (optional)
+            %   varargin - Additional options as name-value pairs:
+            %       'BinWidth' - Width of histogram bins (default = auto)
+            %       'CapInfo' - Optional struct with capping information
+            %       'SNRValues' - SNR values in dB corresponding to indices
+            %       'MaxError' - Maximum error to display on x-axis (default = auto)
+            %       'ShowKDE' - Whether to show kernel density estimation (default = true)
+            %       'CompareMethod' - Index of reference method for comparison (default = [])
+            %       'CompareInSubplot' - Add comparison as subplot (true) or separate figure (false) (default = false)
+            %       'ColorMap' - Colormap for plots (default = 'parula')
+            
+            % Parse inputs
+            p = inputParser;
+            addParameter(p, 'BinWidth', []);  % Auto-calculate bin width if not specified
+            addParameter(p, 'CapInfo', []);
+            addParameter(p, 'SNRValues', []);
+            addParameter(p, 'MaxError', []);
+            addParameter(p, 'ShowKDE', true); % Show KDE curve by default
+            addParameter(p, 'CompareMethod', []);
+            addParameter(p, 'CompareInSubplot', false); % Default to separate figure
+            addParameter(p, 'ColorMap', 'parula');
+            parse(p, varargin{:});
+            
+            % Extract parameters
+            cap_info = p.Results.CapInfo;
+            snr_values = p.Results.SNRValues;
+            max_error = p.Results.MaxError;
+            show_kde = p.Results.ShowKDE;
+            compare_method = p.Results.CompareMethod;
+            compare_in_subplot = p.Results.CompareInSubplot;
+            cmap = colormap(p.Results.ColorMap);
+            
+            % Default SNR indices if not provided
+            if nargin < 4 || isempty(snr_indices)
+            snr_indices = [1, ceil(size(all_errors, 1)/2), size(all_errors, 1)];
+            end
+            
+            % Default figure title
+            if nargin < 5 || isempty(figure_title)
+            figure_title = 'Empirical PDF of Position Errors';
+            end
+            
+            % Get number of methods and SNR levels to plot
+            num_methods = size(all_errors, 2);
+            num_snr_levels = length(snr_indices);
+            
+            % Create a figure for each SNR level
+            for snr_idx_pos = 1:num_snr_levels
+            snr_idx = snr_indices(snr_idx_pos);
+            
+            % Create figure with title including SNR information
+            if ~isempty(snr_values)
+                fig_title = sprintf('%s (SNR: %.1f dB)', figure_title, snr_values(snr_idx));
+            else
+                fig_title = sprintf('%s (SNR Index: %d)', figure_title, snr_idx);
+            end
+            
+            % Create figure with optimized size
+            figure('Name', fig_title, 'NumberTitle', 'off', 'Position', [100, 100, 1200, 800]);
+            
+            % Calculate optimal subplot layout
+            % If we're including a comparison subplot, add one to the total count
+            total_subplots = num_methods;
+            if ~isempty(compare_method) && compare_in_subplot
+                total_subplots = total_subplots + 1;
+            end
+            [rows, cols] = obj.subplot_layout(total_subplots);
+            
+            % Collect overall statistics for auto-scaling
+            all_means = zeros(1, num_methods);
+            all_maxes = zeros(1, num_methods);
+            
+            % Pre-calculate statistics for all methods
+            for method_idx = 1:num_methods
+                errors = all_errors{snr_idx, method_idx};
+                all_means(method_idx) = mean(errors(:)); % Use (:) to ensure we get a scalar
+                all_maxes(method_idx) = max(errors(:));  % Use (:) to ensure we get a scalar
+            end
+            
+            % Determine global axis limits if not specified
+            if isempty(max_error)
+                % Use the maximum mean + 3*std or a reasonable cap
+                global_max_error = min(max(all_maxes), 3*max(all_means));
+            else
+                global_max_error = max_error;
+            end
+            
+            % Create subplots for each method
+            for method_idx = 1:num_methods
+                % Extract errors for current method at specified SNR
+                errors = all_errors{snr_idx, method_idx};
+                
+                % Auto-calculate bin width if not specified
+                if isempty(p.Results.BinWidth)
+                bin_width = max(1, (global_max_error/30));
+                else
+                bin_width = p.Results.BinWidth;
+                end
+                
+                % Calculate statistics
+                mean_error = mean(errors);
+                median_error = median(errors);
+                std_error = std(errors);
+                rmse = sqrt(mean(errors.^2));
+                iqr_value = iqr(errors);
+                
+                % Create subplot
+                subplot(rows, cols, method_idx);
+                
+                % Determine color for current method
+                color_idx = mod(method_idx-1, size(cmap, 1)) + 1;
+                method_color = cmap(color_idx, :);
+                
+                % Plot histogram
+                histogram(errors, 'BinWidth', bin_width, ...
+                'Normalization', 'pdf', ...
+                'FaceColor', method_color, ...
+                'FaceAlpha', 0.7, ...
+                'EdgeColor', 'k');
+                
+                hold on;
+                
+                % Add KDE curve if requested
+                if show_kde
+                [f, xi] = ksdensity(errors, 'Support', 'positive');
+                plot(xi, f, 'LineWidth', 2, 'Color', [method_color*0.7]);
+                end
+                
+                % % Add optimal error line at 0
+                xline(0, 'k--', 'Optimal', 'LineWidth', 1.5, 'LabelOrientation', 'horizontal');
+                
+                
+                % Create detailed title with statistics
+                if ~isempty(cap_info)
+                cap_percentage = cap_info.percentage{method_idx};
+                title_text = sprintf('%s\nMean: %.1f m, Median: %.1f m, RMSE: %.1f m\nStd: %.1f m, IQR: %.1f m, Capped: %.1f%%', ...
+                    legend_names{method_idx}, mean_error, median_error, rmse, std_error, iqr_value, cap_percentage);
+                else
+                title_text = sprintf('%s\nMean: %.1f m, Median: %.1f m, RMSE: %.1f m\nStd: %.1f m, IQR: %.1f m', ...
+                    legend_names{method_idx}, mean_error, median_error, rmse, std_error, iqr_value);
+                end
+                title(title_text);
+                
+                % Labels
+                xlabel('Position Error (m)');
+                ylabel('Probability Density');
+                grid on;
+                
+                % Set consistent axis limits
+                xlim([0, global_max_error]);
+            end
+            
+            % Add comparison plot 
+            if ~isempty(compare_method) && compare_method <= num_methods
+                if compare_in_subplot
+                % Add comparison as final subplot
+                subplot(rows, cols, num_methods + 1);
+                obj.plot_comparison_subplot(all_errors, snr_idx, compare_method, legend_names, global_max_error, snr_values);
+                else
+                % Create a separate figure for method comparison
+                figure('Name', [fig_title, ' - Method Comparison'], 'NumberTitle', 'off', 'Position', [150, 150, 1000, 600]);
+                obj.plot_comparison_subplot(all_errors, snr_idx, compare_method, legend_names, global_max_error, snr_values);
+                end
+            end
+            
+            % Add overall title to main figure
+            sgtitle(fig_title, 'FontSize', 14, 'FontWeight', 'bold');
+            end
+        end
+        
+        function plot_comparison_subplot(~, all_errors, snr_idx, compare_method, legend_names, global_max_error, snr_values)
+            % Helper function to create comparison plot (either as subplot or separate figure)
+            
+            % Get reference errors
+            ref_errors = all_errors{snr_idx, compare_method};
+            
+            % Calculate KDE for reference method
+            [f_ref, xi_ref] = ksdensity(ref_errors, 'Support', 'positive');
+            
+            % Plot reference KDE
+            plot(xi_ref, f_ref, 'LineWidth', 2, 'Color', 'k', 'DisplayName', legend_names{compare_method}); 
+            hold on;
+            
+            % Plot reference mean line
+            ref_mean = mean(ref_errors);
+            xline(ref_mean, 'k--', '', 'LineWidth', 1.5);
+            
+            % Initialize labels
+            plot_labels = cell(1, size(all_errors, 2)+1);
+            plot_labels{1} = legend_names{compare_method};
+            plot_labels{2} = sprintf('Mean %s', legend_names{compare_method});
+            
+            % Track position in labels array
+            label_idx = 3;
+            
+            % Plot KDEs for all other methods
+            for method_idx = 1:size(all_errors, 2)
+            % Skip reference method
+            if method_idx == compare_method
+                continue;
+            end
+            
+            % Get errors and calculate KDE
+            curr_errors = all_errors{snr_idx, method_idx};
+            [f_curr, xi_curr] = ksdensity(curr_errors, 'Support', 'positive');
+            % Plot KDE
+            plot(xi_curr, f_curr, 'LineWidth', 2);
+            
+            % Update labels
+            plot_labels{label_idx} = legend_names{method_idx};
+            label_idx = label_idx + 1;
+            end
+            
+            % Clean up plot
+            grid on;
+            xlabel('Position Error (m)');
+            ylabel('Probability Density');
+            
+            % Remove empty elements from labels
+            plot_labels = plot_labels(~cellfun('isempty', plot_labels));
+            
+            % Add legend
+            legend(plot_labels, 'Location', 'best');
+            
+            % Add title
+            if ~isempty(snr_values)
+            title(sprintf('Error Distribution Comparison at SNR = %.1f dB', snr_values(snr_idx)));
+            else
+            title(sprintf('Error Distribution Comparison at SNR Index = %d', snr_idx));
+            end
+            
+            % Set x-axis limits
+            xlim([0, global_max_error]);
+        end
+        
+        function [rows, cols] = subplot_layout(~, n)
+            % Determine optimal subplot layout based on number of plots
+            
+            % Calculate possible arrangements
+            sqrtn = sqrt(n);
+            cols = ceil(sqrtn);
+            rows = ceil(n/cols);
+            
+            % Ensure we have enough spaces
+            if rows*cols < n
+            cols = cols + 1;
+            end
+        end
+        
+        function tight_layout(~)
+            % Apply tight layout to current figure
+            set(gcf, 'Units', 'normalized');
+            set(findall(gcf, 'Type', 'axes'), 'LooseInset', get(gca, 'TightInset'));
+        end
+
         
         function [result, cnt_capped, cnt_total] = capArrayValues(~, x, max_val, INCLUDE_CAPPED)
             % capArrayValues Cap values that are invalid or exceed maximum
@@ -347,6 +612,10 @@ classdef Metric < handle
             else
                 % Exclude the invalid values completely
                 result = x(~invalid_idx);
+                % If all values were excluded, set result to 0
+                if isempty(result)
+                    result = 0.001;  % Small value to avoid division by zero
+                end
             end
         end
         
