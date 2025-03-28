@@ -1,7 +1,7 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 %% User Inputs and Configurations
-ITERATION =3000;                       % Number of Monte Carlo iterations
+ITERATION =9000;                       % Number of Monte Carlo iterations
 RANDOMISE_RX = false;               % Randomise RX positions and AoA
 CAP_ERROR = true;                   % Cap error values at the maximum theoretical value
 INCLUDE_CAPPED = false;             % Include capped values in the output errors, only vaid if CAP_ERROR is true
