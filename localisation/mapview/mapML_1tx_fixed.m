@@ -1,8 +1,33 @@
-%% This script creates a figure with two subplots:
-% Left: 3D visualization of L(x,y) using Map3D.
-% Right: Map view (Tx, Rx positions with connecting rays) using Map2D.
-% The script also prints the peak coordinate and the SNR values.
-
+%% Performs Maximum Likelihood (ML) localization of a single fixed transmitter
+% using an array of receivers with Uniform Linear Arrays (ULAs).
+%
+% Overview:
+% The script creates a simulated environment with one transmitter and multiple receivers,
+% computes the ML estimate of the transmitter position based on received signals,
+% and visualizes the results in a 2D map for the coordinates and a 3D map with another dimension
+% for the Likelihood Function.
+%
+% Key Components:
+% 1. Environment Setup: Configures a transmitter and multiple receivers in a defined area
+% 2. Signal Generation: Creates signals received at each receiver with configurable SNR
+% 3. ML Estimation: Computes likelihood function and finds optimum transmitter position
+% 4. Visualization: Displays 3D likelihood map and 2D positioning map
+%
+% Dependencies:
+%   - Map2D class: For 2D visualization of positions and angles
+%   - Map3D class: For 3D visualization of likelihood function
+%   - ChannelModels class: For signal and channel modeling
+%   - Likelihood4Coordinates class: For computing position likelihood
+%   - Optimisers class: For optimization algorithms
+%   - progressbar function: For displaying progress during computation
+%
+% Outputs:
+%   - Console output: Estimated position, SNR values, RX positions, rotations, AoA
+%   - Figure with two subplots:
+%     * Left: 3D visualization of likelihood function L(x,y)
+%     * Right: 2D map view showing Tx, Rx positions and connecting rays
+%
+% Author: Minh An Dao (Andreww)
 clear; clc; close all;
 
 %% User Inputs and Configurations
