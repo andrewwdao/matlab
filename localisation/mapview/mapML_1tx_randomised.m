@@ -52,7 +52,7 @@ RANDOMISE_TX = true;               % Randomise TX positions
 SAFETY_DISTANCE = 5;                % Minimum distance between TX and RX (meters)
 area_size = 100;
 % Physical constants and wavelength
-SNR_dB = 50 * ones(1, NUM_RX);      % SNR in dB
+SNR_dB = 0 * ones(1, NUM_RX);      % SNR in dB
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
 lambda = c / fc;                    % Wavelength
@@ -78,15 +78,15 @@ optimiser = Optimisers();
 algo = Algorithms(l4c, optimiser);
 map2d = Map2D([10,10], [90, 90], NUM_RX);
 map3d = Map3D(map2d);
-%% Generate random transmitter position
+% Generate random transmitter position
 pos_tx = map2d.genTXPos(area_size, NUM_TX, RANDOMISE_TX);
-fprintf('Random transmitter position: (%.2f, %.2f)\n', pos_tx(1), pos_tx(2));
-%% Compute absolute angles from each Rx to Tx and corresponding rotations
+pos_tx = [52.82, 61.35]; % Fixed TX position for testing
+% Compute absolute angles from each Rx to Tx and corresponding rotations
 [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, NUM_RX, false, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
 % Generate nuisance transmitted signal with random phase
 [s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY);
 [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
-%% Initialise arrays
+% Initialise DoA estimator
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);    % Create Uniform Linear Array object
 estimator = DoAEstimator(ula, sweeping_angle, 0, DOA_MODE, OPT_GRID_DENSITY);
 doa_estimator = @(sig) estimator.BF(sig);

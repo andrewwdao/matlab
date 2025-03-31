@@ -106,4 +106,4 @@ figure('Name', 'Map Visualisation'); clf; hold on;%, 'WindowState', 'maximized')
 
 map2d = Map2D();
 aoa_est_cell = reshape(num2cell(aoa_rel_est), 1, []);
-map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA], aoa_est_cell);
+map2d.plots(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA], aoa_est_cell);

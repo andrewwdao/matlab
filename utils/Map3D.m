@@ -74,7 +74,7 @@ classdef Map3D < handle
             addParameter(p, 'show_options', [true, true]);
             addParameter(p, 'ax', [], @ishandle);
             addParameter(p, 'ShowAnnotation', false);
-            addParameter(p, 'AnnotationPosition', [0.01, 0.85, 0.25, 0.10]);
+            addParameter(p, 'AnnotationPosition', [0.47, 0.81, 0.25, 0.10]);
             addParameter(p, 'AnnotationStrings', {}, @iscell);
             parse(p, varargin{:});
             
@@ -97,26 +97,55 @@ classdef Map3D < handle
             % Determine if we should show map view
             show_map_view = ~isempty(obj.map2d) && ~isempty(pos_tx) && ~isempty(pos_rx);
             
-            if show_map_view
-                % Right Subplot: Map View
-                subplot(1,2,2); hold on;
-                obj.map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, angle_limit, show_options);
-                % Left Subplot: 3D Visualization of ML Function
-                subplot(1,2,1);
-            end
-            
-            % Create 3D plot
+            % Create 3D plot first to establish color limits
+            subplot(1,2,1);
             surf(x_data, y_data, z_data, 'EdgeColor', 'none', 'FaceColor', 'interp');
             xlabel(p.Results.XLabel);
             ylabel(p.Results.YLabel);
             zlabel(p.Results.ZLabel);
-            title(p.Results.Title);
-            shading interp; % Improves plot appearance
-            colorbar; % Shows color scale
+            title('Likelihood Function');
+            shading interp;
+            colorbar;
             view(0, 90); % Top-down view
             
-            % Add annotation if AnnotationStrings provided
-            if p.Results.ShowAnnotation && ~isempty(AnnotationStrings)
+            % Store color limits for consistent scale - using modern 'clim' instead of 'caxis'
+            clim_vals = clim;
+            
+            if show_map_view
+                % Right Subplot: Map View with contours
+                subplot(1,2,2); hold on;
+                % Plot the 2D map first
+                obj.map2d.plots(pos_tx, pos_rx, rot_abs, area_size, aoa_act, angle_limit, show_options);
+                hold on;
+                % Overlay contours from the likelihood function
+                contour(x_data, y_data, z_data, 15, 'LineWidth', 0.8);
+
+                % The rest of your contour handling can stay mostly the same
+                % Send contours to back layer so they don't hide map elements
+                contour_patches = findobj(gca, 'Type', 'patch');
+                for i = 1:length(contour_patches)
+                    % Set Z-data to send to back (below other elements)
+                    z_data = get(contour_patches(i), 'ZData');
+                    set(contour_patches(i), 'ZData', ones(size(z_data))*-1);
+                end
+
+                % Also handle the contour lines
+                contour_lines = findobj(gca, 'Type', 'contour');
+                if ~isempty(contour_lines)
+                    uistack(contour_lines, 'bottom');
+                end
+
+                % Match color scaling with 3D plot
+                clim(clim_vals);
+                
+                % Bring important elements to front
+                uistack(findobj(gca, 'Type', 'line'), 'top');
+                uistack(findobj(gca, 'Type', 'scatter'), 'top');
+                uistack(findobj(gca, 'Type', 'text'), 'top');
+            end
+            
+            % Add annotation if needed
+            if ~isempty(AnnotationStrings)
                 annotation('textbox', annotPos, ...
                     'String', AnnotationStrings, ...
                     'FitBoxToText', 'on', ...

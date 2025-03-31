@@ -110,7 +110,7 @@ classdef Map2D < handle
             POS_RX = POS_RX(1:num_positions, :);
         end
 
-        function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell)
+        function plots(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell)
             num_rx = size(pos_rx, 1);
             num_tx = size(pos_tx, 1);
             rays_abs = cell(num_rx, 1);
@@ -124,7 +124,7 @@ classdef Map2D < handle
                     % Calculate the absolute rays
                     rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx(tx_idx,:), rot_rx_abs(rx_idx), aoa_act(rx_idx), lim_angle);
                     % Draw connecting ray from Tx to Rx
-                    plot([pos_tx(tx_idx,1), pos_rx(rx_idx,1)], [pos_tx(tx_idx,2), pos_rx(rx_idx,2)], 'Color', [0 0.5 0], 'LineWidth', 4); hold on;
+                    plot([pos_tx(tx_idx,1), pos_rx(rx_idx,1)], [pos_tx(tx_idx,2), pos_rx(rx_idx,2)], 'Color', [0.95, 0.65, 0.3], 'LineWidth', 1); hold on;
                 end
                 % % Determine relative position (from Tx to Rx)
                 % delta = pos_rx(rx_idx,:) - pos_tx;
@@ -211,7 +211,7 @@ classdef Map2D < handle
         function plotDetailed(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, angle_array, powdb_cell, method_list, aoa_est_cell)
             figure('Name', 'Map and Spectrum Visualisation', 'WindowState', 'maximized'); clf; hold on;
             subplot(2,2,1);
-            obj.plot(pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell);hold on;
+            obj.plots(pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell);hold on;
             subplot(2,2,[3,4]);
             obj.plotSpectrum(angle_array, powdb_cell, method_list); hold on;
             subplot(2,2,2);
