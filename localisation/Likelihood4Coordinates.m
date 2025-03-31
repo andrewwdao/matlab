@@ -21,7 +21,6 @@ classdef Likelihood4Coordinates < handle
             L = obj.likelihoodFromCoor(x_tx, y_tx, pos_rx, rot_abs, received_signal_cell, el_num, nPower);
         end
 
-        % filepath: /d:/workspaces/matlab/localisation/Likelihood4Coordinates.m
         function L = likelihoodFromCoor(obj, x_tx, y_tx, pos_rx, rot_abs, received_signal_cell, el_num, nPower)
             % This script computes the Maximum Likelihood function L(x_tx,y_tx) based on the received signals at K receivers.
             num_rx = size(pos_rx, 1);
@@ -50,25 +49,7 @@ classdef Likelihood4Coordinates < handle
             end
         end
 
-        %% ==================================== Local Functions ====================================
-        % function safetyDistanceCheck(~, x_tx, y_tx, pos_rx)
-        %     TX_SAFETY_DISTANCE = 2; % Define safety distance if not already defined
-            
-        %     % Only perform check for scalar inputs (single point evaluation)
-        %     if isscalar(x_tx) && isscalar(y_tx)
-        %         % Check distance to each receiver
-        %         for i = 1:size(pos_rx, 1)
-        %             distance = sqrt((x_tx - pos_rx(i,1))^2 + (y_tx - pos_rx(i,2))^2);
-                    
-        %             % Issue warning if too close
-        %             if distance < TX_SAFETY_DISTANCE
-        %                 warning('RX too close to TX %d (distance: %.2f m) - might cause numerical instability', i, distance);
-        %             end
-        %         end
-        %     end
-        %     % Skip the check for meshgrid inputs (likelihood map generation)
-        % end
-        
+        %% ==================================== Local Functions ====================================        
         function P = likelihoodFromAngles(obj, sin_theta_cell, gamma_cell, received_signal_cell, el_num, nPower)
             % Handle multiple time instances by averaging log-likelihood
             P_total = zeros(size(sin_theta_cell{1}));
@@ -105,6 +86,7 @@ classdef Likelihood4Coordinates < handle
                                 % Compute quadratic form using explicit multiplication
                                 quadratic_form = z_t' * Sigma_inv * z_t;
                             else
+                                warning('Matrix not positive definite and not invertible. Setting likelihood to -inf.');
                                 P_t(i) = -inf; % Mark as an impossible location
                                 continue;
                             end
@@ -113,7 +95,8 @@ classdef Likelihood4Coordinates < handle
                         % Apply likelihood formula
                         P_t(i) = real(-logdet - quadratic_form);
                         
-                    catch
+                    catch e
+                        warning('Error in likelihood calculation for grid point %d: %s', i, e.message);
                         P_t(i) = -inf; % For any calculation errors
                     end
                 end

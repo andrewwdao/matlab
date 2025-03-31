@@ -43,25 +43,30 @@ TIME_INST_NUM = 1;                  % Number of time instances
 RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
+DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
+DOA_RESOLUTION = 1;               % Angle resolution (degrees)
 OPT_GRID_DENSITY = 5;               % Define a coarse grid for initial guesses
 NUM_RX = 10;                        % Number of receivers
 NUM_TX = 1;                         % Number of transmitters
 RANDOMISE_TX = true;               % Randomise TX positions
 SAFETY_DISTANCE = 5;                % Minimum distance between TX and RX (meters)
-
-% Area definition
 area_size = 100;
-x_min = 0;
-x_max = area_size;
-y_min = 0;
-y_max = area_size;
-
 % Physical constants and wavelength
-SNR_dB = 50 * ones(NUM_RX, 1);      % SNR in dB
+SNR_dB = 50 * ones(1, NUM_RX);      % SNR in dB
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
 lambda = c / fc;                    % Wavelength
-
+avg_amp_gain = 1;                           % Average gain of the channel
+L_d0=100;                                   % Reference Power (dB) - for gain calculation
+d0=100;                                     % Reference distance (m) - for gain calculation
+alpha=4;                                    % Path loss exponent - for gain calculation
+P_t = 1;                                    % W - Transmit signal power (known)                      
+Fs = 2 * fc;                                % Sample frequency, enough for the signal
+T = TIME_INST_NUM/Fs;                       % Period of transmission
+t = 0:1/Fs:(T-1/Fs);                        % Time vector for the signal
+% --- Receive Antenna elements characteristics
+element_spacing = 0.5 * lambda;
+sweeping_angle = -90:RESOLUTION:90;
 progressbar('reset', NUM_RX+1);     % Reset progress bar
 progressbar('minimalupdateinterval', 0); % Set a smaller interval at the beginning
 
@@ -70,62 +75,48 @@ SHOW_EXTRA = true;                  % Show extra information such as AoA and int
 
 %% Initialise classes
 channel = ChannelModels();
+l4c = Likelihood4Coordinates();
+optimiser = Optimisers();
+algo = Algorithms(l4c, optimiser);
 map2d = Map2D([10,10], [90, 90], NUM_RX);
 %% Generate random transmitter position
 pos_tx = map2d.genTXPos(area_size, NUM_TX, RANDOMISE_TX);
 fprintf('Random transmitter position: (%.2f, %.2f)\n', pos_tx(1), pos_tx(2));
 %% Compute absolute angles from each Rx to Tx and corresponding rotations
 [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, NUM_RX, false, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
-
-%% Signal and channel configurations
-avg_amp_gain = 1;
-P_t = ones(NUM_RX, 1);
-sub_carrier = (1:NUM_RX)' * 1000;
-Fs = 2 * max(sub_carrier);
-T = TIME_INST_NUM / Fs;
-t = 0:1/Fs:(T-1/Fs);
-element_spacing = 0.5 * lambda;
-sweeping_angle = -90:RESOLUTION:90;
-
-%% For each Rx, generate received signal
-w = cell(NUM_RX, 1);
-for rx_idx = 1:NUM_RX
-    % Generate base signal
-    s_t = sqrt(P_t(NUM_RX)) .* exp(1j * 2 * pi * sub_carrier(NUM_RX) * t);
-    avg_E = FIXED_TRANS_ENERGY * 1 + ~FIXED_TRANS_ENERGY * (avg_amp_gain^2 * P_t(NUM_RX) * T * Fs);
-    nPower = avg_E / db2pow(SNR_dB(rx_idx));
-    y_los = channel.LoS(s_t, avg_amp_gain);
-    y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
-    y_awgn = channel.AWGN(y_ula, nPower);
-    w{rx_idx} = y_awgn;
-    progressbar('step'); % Update progress bar
-end
-
-%% Find the Maximum Likelihood (ML) estimate of the transmitter position
-l4c = Likelihood4Coordinates();
-optimiser = Optimisers();
-objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
-[optCoord, L_peak] = optimiser.gridFmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
-progressbar('end');  % This will display the total runtime
-progressbar('reset', 1); % Reset progress bar
-
-%% Additional function to plot the 3D map
-[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
-progressbar('end');  % This will display the total runtime
+% Generate nuisance transmitted signal with random phase
+[s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY);
+[nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
+%% Initialise arrays
+ula = ULA(lambda, ELEMENT_NUM, element_spacing);    % Create Uniform Linear Array object
+estimator = DoAEstimator(ula, sweeping_angle, 0, DOA_MODE, OPT_GRID_DENSITY);
+doa_estimator = @(sig) estimator.BF(sig);
+progressbar('step'); % Update progress bar
+[optCoord, L_peak, error] = algo.MLOpt4mCentroid(...
+    pos_rx, rot_abs, y_centralised(1,:,:), ...
+    ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
+    doa_estimator, pos_tx...
+);
 
 %% === Plotting and display the result
-fprintf('True TX position: (%.2f, %.2f)\n', pos_tx(1), pos_tx(2));
-fprintf('Estimated TX position: (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
-fprintf('Positioning error: %.2f meters\n', norm(pos_tx - optCoord));
-
 fprintf('RX Positions:\n');
 for idx = 1:size(pos_rx, 1)
     fprintf('  Rx %d: x = %.2f, y = %.2f\n', idx, pos_rx(idx, 1), pos_rx(idx, 2));
 end
+
+fprintf('True TX position: (%.2f, %.2f)\n', pos_tx(1), pos_tx(2));
+fprintf('Estimated TX position: (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
+fprintf('Positioning error: %.2f meters\n', error);
+
 fprintf('Absolute RX Rotations (degrees):\n  ');
 fprintf('%.2f  ', rot_abs); fprintf('\n');
 fprintf('True AoA (degrees):\n  ');
 fprintf('%.2f  ', aoa_act); fprintf('\n');
+
+%% Additional function to plot the 3D map
+progressbar('reset', 1); % Reset progress bar
+[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, y_centralised(1,:,:)', ELEMENT_NUM, nPower);
+progressbar('end');  % This will display the total runtime
 
 figure('Name', '3D ML Visualization and Map View', 'WindowState', 'maximized');
 % Left Subplot: 3D Visualization of ML Function

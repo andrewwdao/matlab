@@ -16,7 +16,7 @@ classdef Algorithms < handle
         
         function error = errorDistance(~, pos_act, pos_est)
             % Calculate distance error between true and estimated positions
-            error = sqrt((pos_act(1)-pos_est(1))^2 + (pos_act(2)-pos_est(2))^2);
+            error = norm(pos_act-pos_est); % sqrt((pos_act(1)-pos_est(1))^2 + (pos_act(2)-pos_est(2))^2);
         end
 
         
@@ -89,7 +89,7 @@ classdef Algorithms < handle
             end
         end
 
-        function [pos_est, error] = MLOptwGrid(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, grid_density, pos_act)
+        function [pos_est, opt_val, error] = MLOptwGrid(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, grid_density, pos_act)
             % Perform ML optimization using grid search followed by fmincon
             %
             % Inputs:
@@ -110,7 +110,7 @@ classdef Algorithms < handle
             obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             
             % Run grid-based optimization
-            [pos_est, ~] = obj.optimiser.gridFmincon2D(obj2min, {}, ...
+            [pos_est, opt_val] = obj.optimiser.gridFmincon2D(obj2min, {}, ...
                 lb, ub, grid_density);
             
             % Calculate error if true position is provided
@@ -121,7 +121,7 @@ classdef Algorithms < handle
             end
         end
         
-        function [pos_est, error] = MLOpt4mDoAtriage(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, doa_estimator, pos_act)
+        function [pos_est, opt_val, error] = MLOpt4mDoAtriage(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, doa_estimator, pos_act)
             % MLOpt4mDoAtriage Maximum likelihood optimization for DOA estimate with AoA triage
             %
             % Performs maximum likelihood (ML) optimization using AoA estimates as initial point
@@ -156,7 +156,7 @@ classdef Algorithms < handle
             obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             % --- Calculate the aoa intersection point and the error distance
             % aoa_intersect = obj.calIntersect(rays_abs{1, 1}, rays_abs{2, 1});
-            [pos_est, ~] = obj.optimiser.findMinWithInitialPoint(obj2min, {}, lb, ub, [aoa_intersect.x, aoa_intersect.y]);
+            [pos_est, opt_val] = obj.optimiser.findMinWithInitialPoint(obj2min, {}, lb, ub, [aoa_intersect.x, aoa_intersect.y]);
             
             % Calculate error if true position is provided
             if nargin > 9 && ~isempty(pos_act)
@@ -166,8 +166,8 @@ classdef Algorithms < handle
             end
         end
 
-        function [pos_est, error] = MLOpt4mCentroid(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, doa_estimator, pos_act)
-            % MLOpt4mCentroid Maximum likelihood optimization using centroid of all ray intersections
+        function [pos_est, opt_val, error] = MLOpt4mCentroid(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, doa_estimator, pos_act)
+            % Maximum likelihood optimization using centroid of all ray intersections
             %
             % Uses the centroid of all DoA ray intersections as the initial point for ML optimization.
             % This approach leverages information from all available receivers, not just the first two.
@@ -238,7 +238,7 @@ classdef Algorithms < handle
             % Create objective function (convert maximization to minimization)
             obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             % --- Use centroid as initial point for ML optimization
-            [pos_est, ~] = obj.optimiser.findMinWithInitialPoint(obj2min, {}, lb, ub, centroid);
+            [pos_est, opt_val] = obj.optimiser.findMinWithInitialPoint(obj2min, {}, lb, ub, centroid);
             
             % Calculate error if true position is provided
             if nargin > 9 && ~isempty(pos_act)

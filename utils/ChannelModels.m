@@ -164,7 +164,7 @@ classdef ChannelModels < handle
             % Outputs:
             %   nPower - Noise power.
             %   y_centralised - Received signal.
-            nvar_snr = length(snr_db);  % Number of SNR variants to test
+            nvar_snr = size(snr_db,1);  % Number of SNR variants to test
             num_rx = size(pos_rx, 1);    % Update num_rx based on number of receivers
             y_centralised = cell(nvar_snr, num_rx); % Received signal at each Rx vectorised to cell array
             for idx_snr=1:nvar_snr

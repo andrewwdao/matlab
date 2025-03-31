@@ -593,7 +593,6 @@ classdef Metric < handle
             set(findall(gcf, 'Type', 'axes'), 'LooseInset', get(gca, 'TightInset'));
         end
 
-        
         function [result, cnt_capped, cnt_total] = capArrayValues(~, x, max_val, INCLUDE_CAPPED)
             % capArrayValues Cap values that are invalid or exceed maximum
             % Caps values in the input array that are NaN, Inf, or greater than the
