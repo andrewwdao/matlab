@@ -82,7 +82,7 @@ rays_abs = cell(NUM_RX_DOA, nvar_doa);               % Pre-allocate for absolute
 for itr = 1:ITERATION
 
     % --- Generate receivers and the received signal for the maximum number of receivers
-    [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, max(NUM_RX_ML), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
+    [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, max(NUM_RX_ML), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
     [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
     doa_estimator = @(sig) estimator.(doa_est_methods(1).name)(sig, doa_est_methods(1).extra_args{:});
     %% --- DoA estimation only

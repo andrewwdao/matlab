@@ -41,7 +41,7 @@ if FIXED_TRANS_ENERGY == true
 else
     % Average engery is fixed for one time instance,
     % so the whole energy over all time instances need to be calculated.
-    avg_E = avg_amp_gain^2 * P_t(RX_NUM) * T * Fs;
+    avg_E = avg_amp_gain^2 * P_t(NUM_RX) * T * Fs;
 end
 % Calculate noise parameters with the corresponding average energy and SNR
 nPower = avg_E/db2pow(SNR_dB);

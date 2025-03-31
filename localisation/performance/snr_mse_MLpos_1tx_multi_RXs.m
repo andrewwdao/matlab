@@ -30,19 +30,19 @@ optimiser = Optimisers();
 rmse_all_cases = zeros(n_param, length(RX_CASES)); % Storage for results from different RX cases
 %% Loop through each RX case
 for rx_case_idx = 1:length(RX_CASES)
-    RX_NUM = RX_CASES(rx_case_idx);  % Current number of receivers
+    NUM_RX = RX_CASES(rx_case_idx);  % Current number of receivers
     
     % Set SNR for all receivers 
-    SNR_dB = repmat(SNR_dB_RANGE', 1, RX_NUM);
+    SNR_dB = repmat(SNR_dB_RANGE', 1, NUM_RX);
     
     % Display progress
-    fprintf('Running simulation for %d receivers...\n', RX_NUM);
+    fprintf('Running simulation for %d receivers...\n', NUM_RX);
     progressbar('reset', ITERATION*n_param); % Reset progress bar
     
     %% Signal and channel configurations
     avg_amp_gain = 1;                % Average gain of the channel
-    P_t = ones(RX_NUM, 1);           % W - Transmit signal power
-    sub_carrier = (1:RX_NUM)' * 1000;% subcarrier spacing by 1000Hz
+    P_t = ones(NUM_RX, 1);           % W - Transmit signal power
+    sub_carrier = (1:NUM_RX)' * 1000;% subcarrier spacing by 1000Hz
     Fs = 2 * max(sub_carrier);       % sample frequency
     T = TIME_INST_NUM/Fs;            % period of transmission
     t = 0:1/Fs:(T-1/Fs);             % Time vector for the signal
@@ -60,12 +60,12 @@ for rx_case_idx = 1:length(RX_CASES)
     y_los = channel.LoS(s_t, avg_amp_gain);
     ula = ULA(lambda, ELEMENT_NUM, element_spacing);
     rmse_values_ml = zeros(n_param, 1);
-    w = cell(RX_NUM, 1); % Received signal at each Rx
+    w = cell(NUM_RX, 1); % Received signal at each Rx
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         %% --- Generate random RX positions ensuring minimum distance from TX
-        pos_rx = zeros(RX_NUM, 2);
-        for i = 1:RX_NUM
+        pos_rx = zeros(NUM_RX, 2);
+        for i = 1:NUM_RX
             valid_position = false;
             while ~valid_position
                 % Generate random position
@@ -79,9 +79,9 @@ for rx_case_idx = 1:length(RX_CASES)
         end
         
         % Generate random true Angle of Arrival
-        aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], RX_NUM, 1);
-        angle_rx_tx_abs = zeros(RX_NUM, 1);
-        for i = 1:RX_NUM
+        aoa_act = -ABS_ANGLE_LIM + RESOLUTION * randi([0, 2*ABS_ANGLE_LIM/RESOLUTION], NUM_RX, 1);
+        angle_rx_tx_abs = zeros(NUM_RX, 1);
+        for i = 1:NUM_RX
             % Calculate the absolute angle of the receiver to the transmitter
             angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
         end
@@ -92,7 +92,7 @@ for rx_case_idx = 1:length(RX_CASES)
             % Update progress bar
             progressbar('step');
             %% === Generate the received signal at each Rx
-            for rx_idx = 1:RX_NUM
+            for rx_idx = 1:NUM_RX
                 % --- Generate signal received at Rx
                 nPower = avg_E/db2pow(SNR_dB(snr_idx, rx_idx));
                 y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);

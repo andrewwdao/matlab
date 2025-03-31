@@ -21,9 +21,9 @@ pos_tx = [50, 50]; % Transmitter position (x, y) in meters
 pos_rx = [15.98, 54.27; 67.64, 69.28];
 aoa_act = [-6.8; 45.6];
 
-RX_NUM = size(pos_rx, 1); % Number of receivers
-angle_rx_tx_abs = zeros(RX_NUM, 1);
-for i = 1:RX_NUM  % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
+NUM_RX = size(pos_rx, 1); % Number of receivers
+angle_rx_tx_abs = zeros(NUM_RX, 1);
+for i = 1:NUM_RX  % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
     angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
 end
 rot_abs = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
@@ -61,9 +61,9 @@ channel = ChannelModels();
 for itr=1:ITERATION
     progressbar('step'); % Update progress bar
     %% === Loop through each RX
-    aoa_rel_est = zeros(RX_NUM, 1);
-    rays_abs = cell(RX_NUM, 1);
-    for rx_idx=1:RX_NUM
+    aoa_rel_est = zeros(NUM_RX, 1);
+    rays_abs = cell(NUM_RX, 1);
+    for rx_idx=1:NUM_RX
         y_los = channel.LoS(s_t, avg_amp_gain);
         y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
         y_awgn = channel.AWGN(y_ula, nPower);

@@ -1,7 +1,7 @@
 
 classdef Map2D < handle
     properties
-        RX_POS = [
+        POS_RX = [
             0, 0; % 1 - Bottom-left corner
             100, 0; % 2 - Bottom-right corner
             100, 100; % 3 - Top-right corner
@@ -17,16 +17,25 @@ classdef Map2D < handle
             75,0; % 13 - Bottom edge
             100, 25; % 14 - Right edge
             100, 75; % 15 - Right edge
-        ]
+        ];
+        POS_TX = [
+            50, 50; % 1 - Center of the area
+            25, 25; % 2 - Bottom-left corner
+            75, 25; % 3 - Bottom-right corner
+            75, 75; % 4 - Top-right corner
+            25, 75; % 5 - Top-left corner
+        ];
+
     end
-    
+
     methods
         function obj = Map2D(varargin)
             if nargin == 3
-                obj.RX_POS = obj.genSquarePerimeterNodes(varargin{1}, varargin{2}, varargin{3});
+                obj.POS_RX = obj.genSquarePerimeterNodes(varargin{1}, varargin{2}, varargin{3});
             end
         end
-        function RX_POS = genSquarePerimeterNodes(~, start_point, end_point, num_positions)
+
+        function POS_RX = genSquarePerimeterNodes(~, start_point, end_point, num_positions)
             % Generate positions in a zigzag pattern around a square perimeter
             % Points are placed at corners first, then midpoints of edges, then recursively subdivide
             
@@ -37,7 +46,7 @@ classdef Map2D < handle
             y2 = end_point(2);
             
             % Initialize with empty array
-            RX_POS = zeros(num_positions, 2);
+            POS_RX = zeros(num_positions, 2);
             
             % Start with the four corners in specific order
             corners = [
@@ -49,7 +58,7 @@ classdef Map2D < handle
             
             % Add the corners as the first points
             num_corners = size(corners, 1);
-            RX_POS(1:num_corners, :) = corners;
+            POS_RX(1:num_corners, :) = corners;
             
             % Define the four edges (in order: left, bottom, right, top)
             edges = [
@@ -82,7 +91,7 @@ classdef Map2D < handle
                 midpoint = [(edge(1,1) + edge(2,1))/2, (edge(1,2) + edge(2,2))/2];
                 
                 % Add midpoint to the positions
-                RX_POS(point_idx, :) = midpoint;
+                POS_RX(point_idx, :) = midpoint;
                 point_idx = point_idx + 1;
                 
                 % Split current edge into two new edges and add to queue
@@ -98,7 +107,7 @@ classdef Map2D < handle
             end
             
             % Trim to requested number of positions
-            RX_POS = RX_POS(1:num_positions, :);
+            POS_RX = POS_RX(1:num_positions, :);
         end
 
         function plot(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell)
@@ -287,9 +296,9 @@ classdef Map2D < handle
 
         function abs_angle = calAbsAngle(~, pos_tx, pos_rx, aoa_act)
             % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants.
-            RX_NUM = size(pos_rx, 1);
-            angle_rx_tx_abs = zeros(RX_NUM, 1);
-            for i = 1:RX_NUM
+            NUM_RX = size(pos_rx, 1);
+            angle_rx_tx_abs = zeros(NUM_RX, 1);
+            for i = 1:NUM_RX
                 angle_rx_tx_abs(i) = atan2d(pos_tx(2)-pos_rx(i,2), pos_tx(1)-pos_rx(i,1));
             end
             abs_angle = angle_rx_tx_abs - aoa_act; % Absolute rotation of the receiver in degrees
@@ -379,7 +388,7 @@ classdef Map2D < handle
             result.y = abs_ray1.doa_slope * result.x + abs_ray1.doa_shift;
         end
 
-        function [pos_rx, aoa_act, rot_abs] = genPos(obj, area_size, pos_tx, rx_num, rx_randomised, safety_dist, angle_limit, resolution)
+        function [pos_rx, aoa_act, rot_abs] = genRXPos(obj, area_size, pos_tx, rx_num, rx_randomised, safety_dist, angle_limit, resolution)
             % Generate random positions for the Rx within the area size and a safe distance from the Tx.
             % 
             % Inputs:
@@ -421,12 +430,49 @@ classdef Map2D < handle
                 end
             else % Fixed RX location with 0 deg AoA based on the number of rx
                 for i = 1:rx_num
-                    pos_rx(i,:) = obj.RX_POS(i,:);
+                    pos_rx(i,:) = obj.POS_RX(i,:);
                     aoa_act(i) = 0;
                 end
             end
             % Calculate the absolute angle of the receiver to the transmitter with 4 quadrants
             rot_abs = obj.calAbsAngle(pos_tx, pos_rx, aoa_act);
+        end
+
+        function pos_tx = genTXPos(~, area_size, tx_num, tx_randomised)
+            % Generate random positions for the Tx within the area size and a safe distance from the Rx.
+            % 
+            % Inputs:
+            %    area_size - The size of the area in which the Tx can be placed.
+            %    pos_tx - The position of the Tx in the 2D plane.
+            %    safety_dist - The minimum distance between the Tx and Rx.
+            %    tx_num - The number of Tx to generate.
+            %
+            % Outputs:
+            %    pos_tx - The generated positions of the Tx in the 2D plane.
+            %
+            % Example:
+            %    area_size = 100;
+            %    pos_tx = [50, 50];
+            %    safety_dist = 10;
+            %    tx_num = 2;
+            pos_tx = zeros(tx_num, 2);
+            if tx_randomised
+                for i = 1:tx_num
+                    % valid_position = false;
+                    % while ~valid_position
+                        % Generate random position
+                        pos_tx(i,:) = area_size * rand(1, 2);
+                        % Check if it's far enough from RX
+                        % if sqrt(sum((pos_tx - pos_tx(i,:)).^2)) >= safety_dist
+                        %     valid_position = true;
+                        % end
+                    % end
+                end
+            else
+                for i = 1:tx_num
+                    pos_tx(i,:) = obj.POS_TX(i,:);
+                end
+            end
         end
     end
 end

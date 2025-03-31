@@ -24,11 +24,11 @@ NUM_RX_ML = 3:7:10;                 % Additional receiver counts for ML optimiza
 nvar_mlpos = length(NUM_RX_ML);     % Number of variants for ML optimization
 %% Initialise classes
 channel = ChannelModels();
-map2d = Map2D([10,10], [90, 90], max(NUM_RX_ML));
 metric = Metric();
 l4c = Likelihood4Coordinates();
 optimiser = Optimisers();
 algo = Algorithms(l4c, optimiser);
+map2d = Map2D([10,10], [90, 90], max(NUM_RX_ML));
 %% Transmitter, receiver positions and angles
 area_size = 100;
 pos_tx = [50, 50];
@@ -82,7 +82,7 @@ rays_abs = cell(NUM_RX_DOA, nvar_doa);               % Pre-allocate for absolute
 for itr = 1:ITERATION
 
     % --- Generate receivers and the received signal for the maximum number of receivers
-    [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, max(NUM_RX_ML), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
+    [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, max(NUM_RX_ML), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
     [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
     doa_estimator = @(sig) estimator.(doa_est_methods(1).name)(sig, doa_est_methods(1).extra_args{:});
     %% --- DoA estimation only

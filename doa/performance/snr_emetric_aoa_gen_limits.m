@@ -24,17 +24,17 @@ metric = Metric(); % Create a Metric object with desired percentiles
 %% Transmitter, receiver positions and angles
 area_size = 100;
 pos_tx = [50, 50];                          % Tx at center
-RX_NUM = 2;                                 % Number of receivers
+NUM_RX = 2;                                 % Number of receivers
 %% SNR values to test
-SNR_dB = repmat((-10:2:20)', 1, RX_NUM);    % SNR in dB
+SNR_dB = repmat((-10:2:20)', 1, NUM_RX);    % SNR in dB
 n_param = length(SNR_dB);                   % Number of SNR points to test
 %% Signal and channel configurations
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
 lambda = c / fc;                    % Wavelength (m)
 avg_amp_gain = 1;                   % Average gain of the channel
-P_t = ones(RX_NUM, 1);              % W - Transmit signal power
-sub_carrier = (1:RX_NUM)' * 1000;   % subcarrier spacing by 1000Hz
+P_t = ones(NUM_RX, 1);              % W - Transmit signal power
+sub_carrier = (1:NUM_RX)' * 1000;   % subcarrier spacing by 1000Hz
 Fs = 2 * max(sub_carrier);          % sample frequency
 T = TIME_INST_NUM/Fs;               % period of transmission
 t = 0:1/Fs:(T-1/Fs);                % Time vector for the signal
@@ -55,7 +55,7 @@ num_legend = length(ABS_ANGLE_LIM);         % Number of angle limit cases
 progressbar('reset', ITERATION*n_param*num_legend); % Reset progress bar
 %% Initialise arrays
 y_los = channel.LoS(s_t, avg_amp_gain);
-y_centralised = cell(RX_NUM, 1); % Received signal at each Rx vectorised to cell array
+y_centralised = cell(NUM_RX, 1); % Received signal at each Rx vectorised to cell array
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);
 
 % Initialize storage for all individual errors
@@ -74,12 +74,12 @@ for angle_idx = 1:num_legend
     %% === Monte Carlo iterations
     for itr = 1:ITERATION
         %% --- Location and AoA Refresh for each iteration
-        [pos_rx, aoa_act, rot_abs] = map2d.genPos(area_size, pos_tx, RX_NUM, true, SAFETY_DISTANCE, current_angle_limit, RESOLUTION);
+        [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, NUM_RX, true, SAFETY_DISTANCE, current_angle_limit, RESOLUTION);
         %% === Loop through each SNR value
         for snr_idx=1:n_param
             progressbar('step'); % Update progress bar
             %% === Generate the received signal at each Rx
-            for rx_idx=1:RX_NUM
+            for rx_idx=1:NUM_RX
                 % --- Generate signal received at Rx
                 nPower = avg_E/db2pow(SNR_dB(snr_idx, rx_idx));
                 y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
@@ -89,9 +89,9 @@ for angle_idx = 1:num_legend
             end
             
             % --- DoA Estimation Algorithm at each RX
-            aoa_rel_est = zeros(RX_NUM, 1);
-            rays_abs = cell(RX_NUM, 1);
-            for rx_idx = 1:RX_NUM
+            aoa_rel_est = zeros(NUM_RX, 1);
+            rays_abs = cell(NUM_RX, 1);
+            for rx_idx = 1:NUM_RX
                 estimator = DoAEstimator(ula, sweeping_angle, aoa_act(rx_idx), DOA_MODE, OPT_GRID_DENSITY);
                 aoa_rel_est(rx_idx) = estimator.(doa_est_methods(1).name)(y_centralised{rx_idx}, doa_est_methods(1).extra_args{:}).aoa_est;
                 rays_abs{rx_idx} = map2d.calAbsRays(pos_rx(rx_idx,:), pos_tx, rot_abs(rx_idx), aoa_rel_est(rx_idx));
@@ -155,7 +155,7 @@ switch DOA_MODE
         modeString = ['Mode: ', DOA_MODE];
 end
 annotStrings = {
-    ['RX number: ', num2str(RX_NUM)], ...    
+    ['RX number: ', num2str(NUM_RX)], ...    
     ['ULA elements: ', num2str(ELEMENT_NUM)], ...
     ['Method: ', strrep(doa_est_methods(1).name, '_', ' ')], ...
     modeString, ...
