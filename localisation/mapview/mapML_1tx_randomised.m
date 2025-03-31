@@ -67,8 +67,6 @@ t = 0:1/Fs:(T-1/Fs);                        % Time vector for the signal
 % --- Receive Antenna elements characteristics
 element_spacing = 0.5 * lambda;
 sweeping_angle = -90:RESOLUTION:90;
-progressbar('reset', NUM_RX+1);     % Reset progress bar
-progressbar('minimalupdateinterval', 0); % Set a smaller interval at the beginning
 
 SHOW_LIMITS = false;                % Show the detecting limits of the RXs
 SHOW_EXTRA = true;                  % Show extra information such as AoA and intersection
@@ -79,6 +77,7 @@ l4c = Likelihood4Coordinates();
 optimiser = Optimisers();
 algo = Algorithms(l4c, optimiser);
 map2d = Map2D([10,10], [90, 90], NUM_RX);
+map3d = Map3D(map2d);
 %% Generate random transmitter position
 pos_tx = map2d.genTXPos(area_size, NUM_TX, RANDOMISE_TX);
 fprintf('Random transmitter position: (%.2f, %.2f)\n', pos_tx(1), pos_tx(2));
@@ -91,38 +90,58 @@ fprintf('Random transmitter position: (%.2f, %.2f)\n', pos_tx(1), pos_tx(2));
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);    % Create Uniform Linear Array object
 estimator = DoAEstimator(ula, sweeping_angle, 0, DOA_MODE, OPT_GRID_DENSITY);
 doa_estimator = @(sig) estimator.BF(sig);
-progressbar('step'); % Update progress bar
+
+%% Alternative display for the RXs - one receiver per line
+fprintf('Receiver Information (fixed):\n');
+fprintf('%-6s %-15s %-15s %-15s\n', 'RX', 'Position', 'Rotation (°)', 'AoA (°)');
+fprintf('----------------------------------------------------------------\n');
+
+for idx = 1:size(pos_rx, 1)
+    fprintf('%-6d (%-5.2f, %-5.2f) %-15.2f %-15.2f\n', ...
+        idx, pos_rx(idx,1), pos_rx(idx,2), rot_abs(idx), aoa_act(idx));
+end
+fprintf('\n');
+
+%% Find the Maximum Likelihood (ML) estimate of the transmitter position
+progressbar('reset', 1);     % Reset progress bar
 [optCoord, L_peak, error] = algo.MLOpt4mCentroid(...
     pos_rx, rot_abs, y_centralised(1,:,:), ...
     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
     doa_estimator, pos_tx...
 );
+progressbar('end');  % This will display the total runtime
 
-%% === Plotting and display the result
-fprintf('RX Positions:\n');
-for idx = 1:size(pos_rx, 1)
-    fprintf('  Rx %d: x = %.2f, y = %.2f\n', idx, pos_rx(idx, 1), pos_rx(idx, 2));
+% Add TX and estimation info
+annotStrings = {};
+annotStrings{end+1} = sprintf('True TX: (%.2f, %.2f)', pos_tx(1), pos_tx(2));
+annotStrings{end+1} = sprintf('Est  TX: (%.2f, %.2f)', optCoord(1), optCoord(2));
+annotStrings{end+1} = sprintf('Opt L: %.2f', L_peak);
+annotStrings{end+1} = sprintf('Error: %.2f m', error);
+annotStrings{end+1} = sprintf('SNR:  %.0f dB', SNR_dB(1,1));
+
+%% Display the results
+for i = 1:length(annotStrings)
+    fprintf('%s\n', annotStrings{i});
 end
 
-fprintf('True TX position: (%.2f, %.2f)\n', pos_tx(1), pos_tx(2));
-fprintf('Estimated TX position: (%.2f, %.2f) with L = %.2f\n', optCoord(1), optCoord(2), L_peak);
-fprintf('Positioning error: %.2f meters\n', error);
-
-fprintf('Absolute RX Rotations (degrees):\n  ');
-fprintf('%.2f  ', rot_abs); fprintf('\n');
-fprintf('True AoA (degrees):\n  ');
-fprintf('%.2f  ', aoa_act); fprintf('\n');
-
 %% Additional function to plot the 3D map
+
+
 progressbar('reset', 1); % Reset progress bar
 [X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, y_centralised(1,:,:)', ELEMENT_NUM, nPower);
 progressbar('end');  % This will display the total runtime
 
-figure('Name', '3D ML Visualization and Map View', 'WindowState', 'maximized');
-% Left Subplot: 3D Visualization of ML Function
-subplot(1,2,1);
-map3d = Map3D(X, Y, L);
-map3d.plot(gca);
-% Right Subplot: Map View
-subplot(1,2,2); hold on;
-map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA]);
+map3d.plots(X, Y, L, ...
+    'Title', '3D Visualization of The Likelihood Function', ...
+    'XLabel', 'x (m)', ...
+    'YLabel', 'y (m)', ...
+    'ZLabel', 'L(x,y)', ...
+    'pos_tx', pos_tx, ...
+    'pos_rx', pos_rx, ...
+    'rot_abs', rot_abs, ...
+    'area_size', area_size, ...
+    'aoa_act', aoa_act, ...
+    'angle_limit', ABS_ANGLE_LIM, ...
+    'show_options', [SHOW_LIMITS, SHOW_EXTRA], ...
+    'ShowAnnotation', true, ...
+    'AnnotationStrings', annotStrings);
