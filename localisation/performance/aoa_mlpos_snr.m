@@ -1,12 +1,24 @@
 clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
+
 %% User Inputs and Configurations
-ITERATION =1;                       % Number of Monte Carlo iterations
+RUN_MODE = 'test'; % Options: 'test' or 'full'
+
+% Set ITERATION based on run mode
+if strcmp(RUN_MODE, 'test')
+    ITERATION = 1;  % For quick testing
+    SAVE_METRICS = false;
+    SHOW_PLOTS = true;
+else  % 'full' mode
+    ITERATION = 30000;  % For full simulation
+    SAVE_METRICS = true;
+    SHOW_PLOTS = false;
+end
+
 RANDOMISE_RX = false;               % Randomise RX positions and AoA
 CAP_ERROR = false;                   % Cap error values at the maximum theoretical value
-INCLUDE_CAPPED = true;             % Include capped values in the output errors, only vaid if CAP_ERROR is true
+INCLUDE_CAPPED = true;             % Include capped values in the output errors, only valid if CAP_ERROR is true
 COMPARE_EPDF_IN_SUBPLOT = true;     % Compare empirical PDFs in subplots
-SAVE_METRICS = true;               % Save metrics to file
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 1;               % Angle resolution (degrees)
 OPT_GRID_DENSITY = 10;              % Define a coarse grid for initial guesses
@@ -19,22 +31,27 @@ SAFETY_DISTANCE = 2;                % Minimum distance between TX and RX (meters
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
+
 %% Additional RX counts for ML optimization
 NUM_RX_ML = 3:7:10;                 % Additional receiver counts for ML optimization
 nvar_mlpos = length(NUM_RX_ML);     % Number of variants for ML optimization
-%% Initialise classes
+
+%% Initialize classes
 channel = ChannelModels();
 metric = Metric();
 l4c = Likelihood4Coordinates();
 optimiser = Optimisers();
 algo = Algorithms(l4c, optimiser);
 map2d = Map2D([10,10], [90, 90], max(NUM_RX_ML));
+
 %% Transmitter, receiver positions and angles
 area_size = 100;
 pos_tx = [50, 50];
+
 %% SNR values to test
 SNR_dB = repmat((-10:2:20)', 1, max(NUM_RX_DOA, max(NUM_RX_ML)));    % SNR in dB
 nvar_snr = length(SNR_dB);                   % Number of positions to test
+
 %% Signal and channel configurations
 c = 299792458;                              % Speed of light (m/s)
 fc = 2.4e9;                                 % Base carrier frequency (Hz) (known)
@@ -50,12 +67,14 @@ t = 0:1/Fs:(T-1/Fs);                        % Time vector for the signal
 if ~CAP_ERROR
     INCLUDE_CAPPED = true;                 % Disable capped values if we're not capping errors
 end
+
 % --- Receive Antenna elements characteristics
 element_spacing = 0.5 * lambda;             % Element spacing (ULA)
-sweeping_angle = -90:DOA_RESOLUTION:90;         % Angle range for finding the AoA
+sweeping_angle = -90:DOA_RESOLUTION:90;     % Angle range for finding the AoA
 
 % Generate nuisance transmitted signal with random phase
 [s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY);
+
 %% === Define the methods to test for performance
 doa_est_methods = struct(...
     'name', {'BF'}, ... % estimator methods
@@ -63,8 +82,10 @@ doa_est_methods = struct(...
 );
 nvar_doa = numel(doa_est_methods);               % Automatically get number of methods from struct array
 num_legend = nvar_doa + nvar_mlpos*2;         % Number of methods plus ML method
+
 fprintf('Running Monte Carlo simulation with %d iterations...\n', ITERATION);
 progressbar('reset', ITERATION*nvar_snr+ ITERATION*nvar_mlpos*2*nvar_snr);            % Reset progress bar
+
 %% Initialise arrays
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);    % Create Uniform Linear Array object
 estimator = DoAEstimator(ula, sweeping_angle, 0, DOA_MODE, OPT_GRID_DENSITY);
@@ -78,13 +99,14 @@ for i=1:nvar_snr
 end
 aoa_rel_est = zeros(NUM_RX_DOA, nvar_doa);           % Pre-allocate for Relative AoA estimation
 rays_abs = cell(NUM_RX_DOA, nvar_doa);               % Pre-allocate for absolute rays
+
 %% === Monte Carlo iterations
 for itr = 1:ITERATION
-
     % --- Generate receivers and the received signal for the maximum number of receivers
     [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, max(NUM_RX_ML), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
     [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
     doa_estimator = @(sig) estimator.(doa_est_methods(1).name)(sig, doa_est_methods(1).extra_args{:});
+    
     %% --- DoA estimation only
     for idx_snr=1:nvar_snr
         y_received = y_centralised(idx_snr, :);
@@ -94,6 +116,7 @@ for itr = 1:ITERATION
             doa_estimator, pos_tx ...
         );
     end
+    
     %% --- ML optimization with additional receivers
     for ml_idx = 1:nvar_mlpos
         % Loop through each SNR value
@@ -121,113 +144,11 @@ for itr = 1:ITERATION
         end
     end
 end
-% % Cap errors at the maximum theoretical value
-% if CAP_ERROR
-%     max_possible_error = sqrt(2) * area_size;
-%     capped_errors = metric.capErrorValues(all_errors, max_possible_error, INCLUDE_CAPPED);
-%     all_errors = capped_errors.values;
-% end
 
-% percentiles = struct( ...
-%     'lower', zeros(nvar_snr, num_legend), ...
-%     'upper', zeros(nvar_snr, num_legend), ...
-%     'val', zeros(nvar_snr, num_legend));
-% % Select which metric to calculate and plot
-% switch METRIC_TO_PLOT
-%     case 'rmse'
-%         plot_data = metric.cal_RMSE(all_errors);
-%         metric_label = 'RMSE';
-%     case 'p25'
-%         plot_data = metric.cal_Percentiles(all_errors, 25).val;
-%         metric_label = '25th Percentile';
-%     case 'p75'
-%         plot_data = metric.cal_Percentiles(all_errors, 75).val;
-%         metric_label = '75th Percentile';
-%     case 'band' % Calculate the percentiles for the error band
-%         percentiles = metric.cal_Percentiles(all_errors, BAND_PERCENTILES);
-%         plot_data = percentiles.val;
-%         metric_label = 'Median with Error Band';
-%     otherwise % Default to median (50th percentile)
-%         METRIC_TO_PLOT = 'p50';
-%         plot_data = metric.cal_Percentiles(all_errors).val;
-%         metric_label = 'Median';
-% end
-
-% %% === Prepare data and plotting
-% % Create display names for all methods
-% legend_name = cell(1, num_legend);
-% for i = 1:nvar_doa
-%     switch DOA_MODE
-%         case 'sweep'
-%             modeString = [DOA_MODE, ' ', num2str(DOA_RESOLUTION), '\circ res)'];
-%         case 'opt'
-%             modeString = [DOA_MODE, ' ', num2str(OPT_GRID_DENSITY), ' grid)'];
-%         otherwise
-%             modeString = DOA_MODE;
-%     end
-%     legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA triage (', num2str(NUM_RX_DOA), ' RXs ', modeString];
-% end
-% for ml_idx = 1:nvar_mlpos
-%     legend_name{nvar_doa+ml_idx} = ['MLpos ' num2str(NUM_RX_ML(ml_idx)) ' RXs (triage initial)'];
-%     legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos ' num2str(NUM_RX_ML(ml_idx)) ' RXs (centroid initial)'];
-% end
-
-% rx_type = {'fixed', 'randomised'};
-% cap_error = {'full', 'capped'};
-% excluded = {' excluded', ''};
-% annotStrings = {
-%     ['RX Type: ', rx_type{1 + RANDOMISE_RX}], ...
-%     ['ULA elements: ', num2str(ELEMENT_NUM)], ...
-%     ['Time instances: ', num2str(TIME_INST_NUM)], ...
-%     ['Error Metric: ', metric_label, ' (', cap_error{1+CAP_ERROR}, excluded{1+INCLUDE_CAPPED},')']
-% };
-
-% % Display capped error values
-% if CAP_ERROR
-%     for idx =1:num_legend
-%         fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend_name{idx}, capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
-%     end
-% end
-% % Plot the error metric
-% metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
-%     'DisplayNames', legend_name, ...
-%     'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, num_legend), ...
-%     'BandLower', percentiles.lower, ...
-%     'BandUpper', percentiles.upper, ...
-%     'Title', ['Error Metric by estimation method (', num2str(ITERATION), ' iterations)'], ...
-%     'YLabel', [metric_label, ' Error [m]'], ...
-%     'ShowAnnotation', true, ...
-%     'AnnotationStrings', annotStrings);
-
-% %% Plot empirical PDF of errors for selected SNR values
-% % Select low, medium, and high SNR indices to plot
-% snr_indices = [1, ceil(nvar_snr/2), nvar_snr];
-
-% % Get SNR values for the selected indices
-% snr_values = mean(SNR_dB, 2);
-
-% % Add a figure title
-% pdf_title = ['Empirical PDF of Position Estimation Errors by Method (',rx_type{1 + RANDOMISE_RX},' RXs, ', num2str(ITERATION), ' iterations, ', cap_error{1+CAP_ERROR}, excluded{1+INCLUDE_CAPPED},')'];
-
-% % Call the enhanced plot_epdf method from the Metric class
-% if CAP_ERROR
-%     metric.plot_epdf(all_errors, legend_name, snr_indices, pdf_title, ...
-%                     'SNRValues', snr_values, ...
-%                     'CapInfo', capped_errors, ...
-%                     'ShowKDE', true, ...
-%                     'CompareMethod', 1, ... % Compare all methods to DoA intersection
-%                     'CompareInSubplot', COMPARE_EPDF_IN_SUBPLOT);
-% else
-%     metric.plot_epdf(all_errors, legend_name, snr_indices, pdf_title, ...
-%                     'SNRValues', snr_values, ...
-%                     'ShowKDE', true, ...
-%                     'CompareMethod', 1, ... % Compare all methods to DoA intersection
-%                     'CompareInSubplot', COMPARE_EPDF_IN_SUBPLOT);
-% end
-
-%% Save metrics to file if we have enough iterations for meaningful statistics
+%% Process results - either save or plot
 if SAVE_METRICS
-OUTPUT_PATH = 'data';
+    % Save metrics to file
+    OUTPUT_PATH = 'data';
     % Create the outputs directory if it doesn't exist
     if ~exist(OUTPUT_PATH, 'dir')
         mkdir(OUTPUT_PATH);
@@ -237,7 +158,15 @@ OUTPUT_PATH = 'data';
     timestamp = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
     metric_filename = [timestamp '_' mfilename '.mat'];
     
-    % Save the data including annotation strings and display names
+    % Save the data including all parameters needed for plotting
     save(fullfile(OUTPUT_PATH, metric_filename));
-    fprintf('Metrics saved to /data/%s\n', metric_filename);
+    fprintf('Metrics saved to data/%s\n', metric_filename);
+end
+
+if SHOW_PLOTS
+    % Call the shared plotting function for immediate visualization
+    plot_aoa_mlpos(all_errors, SNR_dB, metric, doa_est_methods, ...
+        NUM_RX_DOA, NUM_RX_ML, DOA_MODE, DOA_RESOLUTION, OPT_GRID_DENSITY, ...
+        ELEMENT_NUM, TIME_INST_NUM, RANDOMISE_RX, CAP_ERROR, INCLUDE_CAPPED, ...
+        COMPARE_EPDF_IN_SUBPLOT, ITERATION, METRIC_TO_PLOT, BAND_PERCENTILES);
 end

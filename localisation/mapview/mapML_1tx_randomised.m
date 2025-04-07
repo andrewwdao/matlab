@@ -46,7 +46,7 @@ ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 1;               % Angle resolution (degrees)
 OPT_GRID_DENSITY = 5;               % Define a coarse grid for initial guesses
-NUM_RX = 10;                        % Number of receivers
+NUM_RX = 3;                        % Number of receivers
 NUM_TX = 1;                         % Number of transmitters
 RANDOMISE_TX = true;               % Randomise TX positions
 SAFETY_DISTANCE = 5;                % Minimum distance between TX and RX (meters)
@@ -80,7 +80,8 @@ map2d = Map2D([10,10], [90, 90], NUM_RX);
 map3d = Map3D(map2d);
 % Generate random transmitter position
 pos_tx = map2d.genTXPos(area_size, NUM_TX, RANDOMISE_TX);
-pos_tx = [52.82, 61.35]; % Fixed TX position for testing
+% pos_tx = [52.82, 61.35]; % Fixed TX position for testing
+% pos_tx = [75.69, 24.83]; % Fixed TX position for testing 2
 % Compute absolute angles from each Rx to Tx and corresponding rotations
 [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, NUM_RX, false, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
 % Generate nuisance transmitted signal with random phase

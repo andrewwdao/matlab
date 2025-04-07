@@ -68,7 +68,7 @@ element_spacing = 0.5 * lambda;
 sweeping_angle = -90:RESOLUTION:90;
 
 %% For each Rx, generate received signal
-w = cell(NUM_RX, 1);
+y_centralised = cell(NUM_RX, 1);
 for rx_idx = 1:NUM_RX
     % Generate base signal (using last element index as in the original code)
     s_t = sqrt(P_t(NUM_RX)) .* exp(1j * 2 * pi * sub_carrier(NUM_RX) * t);
@@ -77,19 +77,19 @@ for rx_idx = 1:NUM_RX
     y_los = channel.LoS(s_t, avg_amp_gain);
     y_ula = channel.applyULA(y_los, aoa_act(rx_idx), ELEMENT_NUM, element_spacing, lambda);
     y_awgn = channel.AWGN(y_ula, nPower);
-    w{rx_idx} = y_awgn;
+    y_centralised{rx_idx} = y_awgn;
     progressbar('step'); % Update progress bar
 end
 %% Find the Maximum Likelihood (ML) estimate of the transmitter position
 % nPower_model = 1; % Noise power level for the model
 l4c = Likelihood4Coordinates();
 optimiser = Optimisers();
-objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
+objective_to_maximize = @(coor) -l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised, ELEMENT_NUM, nPower);
 [optCoord, L_peak] = optimiser.gridFmincon2D(objective_to_maximize, {}, [0, 0], [area_size, area_size], OPT_GRID_DENSITY);
 progressbar('end');  % This will display the total runtime
 progressbar('reset', 1); % Reset progress bar
 %% additional function to plot the 3D map
-[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, w, ELEMENT_NUM, nPower);
+[X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, y_centralised, ELEMENT_NUM, nPower);
 progressbar('end');  % This will display the total runtime
 
 %% === Plotting and display the result
@@ -109,7 +109,7 @@ figure('Name', '3D ML Visualization and Map View', 'WindowState', 'maximized');
 % Left Subplot: 3D Visualization of ML Function
 subplot(1,2,1);
 map3d = Map3D(X, Y, L);
-map3d.plot(gca);
+map3d.plots(gca);
 % Right Subplot: Map View
 subplot(1,2,2); hold on;
-map2d.plot(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA]);
+map2d.plots(pos_tx, pos_rx, rot_abs, area_size, aoa_act, ABS_ANGLE_LIM, [SHOW_LIMITS, SHOW_EXTRA]);

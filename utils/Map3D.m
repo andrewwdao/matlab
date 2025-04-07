@@ -70,6 +70,7 @@ classdef Map3D < handle
             addParameter(p, 'rot_abs', [], @isnumeric);
             addParameter(p, 'area_size', 100, @isnumeric);
             addParameter(p, 'aoa_act', [], @isnumeric);
+            addParameter(p, 'aoa_est', {}, @iscell);
             addParameter(p, 'angle_limit', 60, @isnumeric);
             addParameter(p, 'show_options', [true, true]);
             addParameter(p, 'ax', [], @ishandle);

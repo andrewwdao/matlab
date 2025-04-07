@@ -22,9 +22,8 @@ classdef Metric < handle
         end
         
         function mse = cal_MSE(~, errors)
-            % CALCULATEMSE Calculate Mean Square Error
-            %   mse = CALCULATEMSE(errors) calculates the mean square error from 
-            %   the input error values
+            %  Calculate Mean Square Error
+            %  from the input error values
             %
             %   Input:
             %     errors: Cell array or matrix of error values
@@ -170,7 +169,7 @@ classdef Metric < handle
             addParameter(p, 'ShowBands', false);
             addParameter(p, 'BandLower', []);
             addParameter(p, 'BandUpper', []);
-            addParameter(p, 'Title', '');
+            addParameter(p, 'Title', 'Error Metric by estimation method');
             addParameter(p, 'XLabel', 'Signal to Noise Ratio (SNR) [dB]');
             addParameter(p, 'YLabel', 'Error [m]');
             addParameter(p, 'LegendLocation', 'northeast');
@@ -269,9 +268,7 @@ classdef Metric < handle
             end
             
             % Add title, labels, and legend
-            if ~isempty(p.Results.Title)
-                title(p.Results.Title);
-            end
+            title(p.Results.Title);
             xlabel(p.Results.XLabel);
             ylabel(p.Results.YLabel);
             legend('Location', p.Results.LegendLocation);

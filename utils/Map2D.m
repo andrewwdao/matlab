@@ -124,26 +124,8 @@ classdef Map2D < handle
                     % Calculate the absolute rays
                     rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx(tx_idx,:), rot_rx_abs(rx_idx), aoa_act(rx_idx), lim_angle);
                     % Draw connecting ray from Tx to Rx
-                    plot([pos_tx(tx_idx,1), pos_rx(rx_idx,1)], [pos_tx(tx_idx,2), pos_rx(rx_idx,2)], 'Color', [0.95, 0.65, 0.3], 'LineWidth', 1); hold on;
+                    % plot([pos_tx(tx_idx,1), pos_rx(rx_idx,1)], [pos_tx(tx_idx,2), pos_rx(rx_idx,2)], 'Color', [0.95, 0.65, 0.3], 'LineWidth', 1); hold on;
                 end
-                % % Determine relative position (from Tx to Rx)
-                % delta = pos_rx(rx_idx,:) - pos_tx;
-                % if (delta(1) < 0 && delta(2) >= 0) || (delta(1) >= 0 && delta(2) >= 0)
-                %     % Quadrant I or II
-                %     base_angle = rot_rx_abs(rx_idx);
-                % elseif (delta(1) < 0 && delta(2) < 0) || (delta(1) >= 0 && delta(2) < 0)
-                %     % Quadrant III or IV
-                %     base_angle = rot_rx_abs(rx_idx) + 180;
-                % end
-
-                % % Now, sweep the arc from base_angle to base_angle + aoa_act(rx_idx)
-                % theta_arc = linspace(base_angle, base_angle + aoa_act(rx_idx), 50); 
-
-                % arc_radius = 5; % Adjust for visual clarity
-                % arc_x = pos_rx(rx_idx,1) + arc_radius * cosd(theta_arc);
-                % arc_y = pos_rx(rx_idx,2) + arc_radius * sind(theta_arc);
-                % plot(arc_x, arc_y, 'm-', 'LineWidth', 2); 
-                % hold on;            
             end
 
             % --- Plot the Estimated AoA intersection rays and point
