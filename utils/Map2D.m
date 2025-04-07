@@ -24,6 +24,8 @@ classdef Map2D < handle
             75, 25; % 3 - Bottom-right corner
             75, 75; % 4 - Top-right corner
             25, 75; % 5 - Top-left corner
+            52.82, 61.35; % 6 - Random point in the area
+            75.69, 24.83; % 7 - Random point in the area
         ];
 
     end
@@ -451,7 +453,7 @@ classdef Map2D < handle
             rot_abs = obj.calAbsAngle(pos_tx, pos_rx, aoa_act);
         end
 
-        function pos_tx = genTXPos(~, area_size, tx_num, tx_randomised)
+        function pos_tx = genTXPos(obj, area_size, tx_num, tx_randomised)
             % Generate random positions for the Tx within the area size and a safe distance from the Rx.
             % 
             % Inputs:

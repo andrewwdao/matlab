@@ -1,5 +1,5 @@
-clear; clc; close all;
 %#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
+clear; clc; close all;
 
 %% User Inputs and Configurations
 RUN_MODE = 'test'; % Options: 'test' or 'full'
@@ -15,44 +15,34 @@ else  % 'full' mode
     SHOW_PLOTS = false;
 end
 
-RANDOMISE_RX = false;               % Randomise RX positions and AoA
-CAP_ERROR = false;                   % Cap error values at the maximum theoretical value
-INCLUDE_CAPPED = true;             % Include capped values in the output errors, only valid if CAP_ERROR is true
-COMPARE_EPDF_IN_SUBPLOT = true;     % Compare empirical PDFs in subplots
+TX_RANDOMISED = false;              % Randomise TX positions
+RX_RANDOMISED = false;              % Randomise RX positions and AoA
+TX_NUM = 1;                         % Number of transmitters
+RX_NUM = 3;                         % Number of receivers
+RX_NUM_DOA = 2;                     % Number of receivers for DoA estimation
+ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
-DOA_RESOLUTION = 1;               % Angle resolution (degrees)
-OPT_GRID_DENSITY = 10;              % Define a coarse grid for initial guesses
+DOA_RESOLUTION = 1;                 % Angle resolution (degrees)
 ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
 TIME_INST_NUM = 1;                  % Number of time instances
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
-ELEMENT_NUM = 4;                    % Number of ULA elements
-NUM_RX_DOA = 2;                     % Number of receivers
+OPT_GRID_DENSITY = 10;              % Define a coarse grid for initial guesses
 SAFETY_DISTANCE = 2;                % Minimum distance between TX and RX (meters)
+area_size = 100;                    % Area size for RX positions
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
-
+CAP_ERROR = false;                   % Cap error values at the maximum theoretical value
+INCLUDE_CAPPED = true;             % Include capped values in the output errors, only valid if CAP_ERROR is true
+COMPARE_EPDF_IN_SUBPLOT = true;     % Compare empirical PDFs in subplots
 %% Additional RX counts for ML optimization
 NUM_RX_ML = 3:7:10;                 % Additional receiver counts for ML optimization
 nvar_mlpos = length(NUM_RX_ML);     % Number of variants for ML optimization
 
-%% Initialize classes
-channel = ChannelModels();
-metric = Metric();
-l4c = Likelihood4Coordinates();
-optimiser = Optimisers();
-algo = Algorithms(l4c, optimiser);
-map2d = Map2D([10,10], [90, 90], max(NUM_RX_ML));
-
-%% Transmitter, receiver positions and angles
-area_size = 100;
-pos_tx = [50, 50];
-
-%% SNR values to test
-SNR_dB = repmat((-10:2:20)', 1, max(NUM_RX_DOA, max(NUM_RX_ML)));    % SNR in dB
-nvar_snr = length(SNR_dB);                   % Number of positions to test
 
 %% Signal and channel configurations
+SNR_dB = repmat((-10:2:20)', 1, max(RX_NUM_DOA, max(NUM_RX_ML)));    % SNR in dB
+nvar_snr = length(SNR_dB);                   % Number of positions to test
 c = 299792458;                              % Speed of light (m/s)
 fc = 2.4e9;                                 % Base carrier frequency (Hz) (known)
 lambda = c / fc;                            % Wavelength (m)
@@ -64,31 +54,27 @@ P_t = 1;                                    % W - Transmit signal power (known)
 Fs = 2 * fc;                                % Sample frequency, enough for the signal
 T = TIME_INST_NUM/Fs;                       % Period of transmission
 t = 0:1/Fs:(T-1/Fs);                        % Time vector for the signal
-if ~CAP_ERROR
-    INCLUDE_CAPPED = true;                 % Disable capped values if we're not capping errors
-end
-
 % --- Receive Antenna elements characteristics
 element_spacing = 0.5 * lambda;             % Element spacing (ULA)
 sweeping_angle = -90:DOA_RESOLUTION:90;     % Angle range for finding the AoA
+if ~CAP_ERROR
+    INCLUDE_CAPPED = true;                 % Disable capped values if we're not capping errors
+end
+%% Initialize classes
+channel = ChannelModels();
+l4c = Likelihood4Coordinates();
+optimiser = Optimisers();
+algo = Algorithms(l4c, optimiser);
+map2d = Map2D([10,10], [90, 90], max(NUM_RX_ML));
+metric = Metric();
 
-% Generate nuisance transmitted signal with random phase
-[s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY);
-
-%% === Define the methods to test for performance
+%% The methods to test for performance
 doa_est_methods = struct(...
     'name', {'BF'}, ... % estimator methods
     'extra_args', {{}} ...        % extra args required for specific type of estimator
 );
 nvar_doa = numel(doa_est_methods);               % Automatically get number of methods from struct array
 num_legend = nvar_doa + nvar_mlpos*2;         % Number of methods plus ML method
-
-fprintf('Running Monte Carlo simulation with %d iterations...\n', ITERATION);
-progressbar('reset', ITERATION*nvar_snr+ ITERATION*nvar_mlpos*2*nvar_snr);            % Reset progress bar
-
-%% Initialise arrays
-ula = ULA(lambda, ELEMENT_NUM, element_spacing);    % Create Uniform Linear Array object
-estimator = DoAEstimator(ula, sweeping_angle, 0, DOA_MODE, OPT_GRID_DENSITY);
 
 % Initialize storage for all individual errors
 all_errors = cell(nvar_snr, num_legend);             % Pre-allocate for variable-sized collections
@@ -97,16 +83,26 @@ for i=1:nvar_snr
         all_errors{i,j} = zeros(ITERATION, 1);
     end
 end
-aoa_rel_est = zeros(NUM_RX_DOA, nvar_doa);           % Pre-allocate for Relative AoA estimation
-rays_abs = cell(NUM_RX_DOA, nvar_doa);               % Pre-allocate for absolute rays
+aoa_rel_est = zeros(RX_NUM_DOA, nvar_doa);           % Pre-allocate for Relative AoA estimation
+rays_abs = cell(RX_NUM_DOA, nvar_doa);               % Pre-allocate for absolute rays
 
+%% Transmitter, receiver positions and angles
+% Transmitters
+pos_tx = map2d.genTXPos(area_size, TX_NUM, TX_RANDOMISED);
+[s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY); % Generate nuisance transmitted signal with random phase
+% Initialise DoA estimator
+ula = ULA(lambda, ELEMENT_NUM, element_spacing);    % Create Uniform Linear Array object
+estimator = DoAEstimator(ula, sweeping_angle, 0, DOA_MODE, OPT_GRID_DENSITY);
+doa_estimator = @(sig) estimator.(doa_est_methods(1).name)(sig, doa_est_methods(1).extra_args{:});
+
+fprintf('Running Monte Carlo simulation with %d iterations...\n', ITERATION);
+progressbar('reset', ITERATION*nvar_snr+ ITERATION*nvar_mlpos*2*nvar_snr); % Reset progress bar
 %% === Monte Carlo iterations
 for itr = 1:ITERATION
     % --- Generate receivers and the received signal for the maximum number of receivers
-    [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, max(NUM_RX_ML), RANDOMISE_RX, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
+    [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, max(NUM_RX_ML), RX_RANDOMISED, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
     [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
-    doa_estimator = @(sig) estimator.(doa_est_methods(1).name)(sig, doa_est_methods(1).extra_args{:});
-    
+
     %% --- DoA estimation only
     for idx_snr=1:nvar_snr
         y_received = y_centralised(idx_snr, :);
@@ -130,7 +126,7 @@ for itr = 1:ITERATION
                 doa_estimator, pos_tx...
             );
             progressbar('step'); % Update progress bar
-            [~, ~, all_errors{idx_snr, nvar_doa+nvar_mlpos+ml_idx}(itr)] = algo.MLOpt4mCentroid(...
+            [~, ~, ~, all_errors{idx_snr, nvar_doa+nvar_mlpos+ml_idx}(itr)] = algo.MLOpt4mCentroid(...
                 pos_rx_active, rot_abs, y_received_active, ...
                 ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                 doa_estimator, pos_tx...
@@ -166,7 +162,7 @@ end
 if SHOW_PLOTS
     % Call the shared plotting function for immediate visualization
     plot_aoa_mlpos(all_errors, SNR_dB, metric, doa_est_methods, ...
-        NUM_RX_DOA, NUM_RX_ML, DOA_MODE, DOA_RESOLUTION, OPT_GRID_DENSITY, ...
-        ELEMENT_NUM, TIME_INST_NUM, RANDOMISE_RX, CAP_ERROR, INCLUDE_CAPPED, ...
+        RX_NUM_DOA, NUM_RX_ML, DOA_MODE, DOA_RESOLUTION, OPT_GRID_DENSITY, ...
+        ELEMENT_NUM, TIME_INST_NUM, RX_RANDOMISED, CAP_ERROR, INCLUDE_CAPPED, ...
         COMPARE_EPDF_IN_SUBPLOT, ITERATION, METRIC_TO_PLOT, BAND_PERCENTILES);
 end

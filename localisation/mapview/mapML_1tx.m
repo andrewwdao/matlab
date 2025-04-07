@@ -38,22 +38,21 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
-TIME_INST_NUM = 1;                  % Number of time instances
-RESOLUTION = 0.1;                   % Angle resolution (degrees)
-FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
+TX_RANDOMISED = true;              % Randomise TX positions
+RX_RANDOMISED = false;              % Randomise RX positions and AoA
+TX_NUM = 1;                         % Number of transmitters
+RX_NUM = 3;                         % Number of receivers
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 1;                 % Angle resolution (degrees)
+ABS_ANGLE_LIM = 60;                 % Absolute angle limit (degrees)
+TIME_INST_NUM = 1;                  % Number of time instances
+FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 OPT_GRID_DENSITY = 5;               % Define a coarse grid for initial guesses
-NUM_RX = 3;                         % Number of receivers
-NUM_TX = 1;                         % Number of transmitters
-TX_RANDOMISED = false;                % Randomise TX positions
-RX_RANDOMISED = false;               % Randomise RX positions and AoA
 SAFETY_DISTANCE = 5;                % Minimum distance between TX and RX (meters)
 area_size = 100;
-% Physical constants and wavelength
-SNR_dB = 0 * ones(1, NUM_RX);       % SNR in dB
+%% Signal and channel configurations
+SNR_dB = 0 * ones(1, RX_NUM);       % SNR in dB
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
 lambda = c / fc;                    % Wavelength
@@ -67,7 +66,7 @@ T = TIME_INST_NUM/Fs;               % Period of transmission
 t = 0:1/Fs:(T-1/Fs);                % Time vector for the signal
 % --- Receive Antenna elements characteristics
 element_spacing = 0.5 * lambda;
-sweeping_angle = -90:RESOLUTION:90;
+sweeping_angle = -90:DOA_RESOLUTION:90;
 
 SHOW_LIMITS = false;                % Show the detecting limits of the RXs
 SHOW_EXTRA = true;                  % Show extra information such as AoA and intersection
@@ -77,21 +76,15 @@ channel = ChannelModels();
 l4c = Likelihood4Coordinates();
 optimiser = Optimisers();
 algo = Algorithms(l4c, optimiser);
-map2d = Map2D([10,10], [90, 90], NUM_RX);
+map2d = Map2D([10,10], [90, 90], RX_NUM);
 map3d = Map3D(map2d);
-if TX_RANDOMISED
-    pos_tx = map2d.genTXPos(area_size, NUM_TX, TX_RANDOMISED); % Generate random transmitter position
-    % pos_tx = [52.82, 61.35]; % Fixed TX position for testing
-    % pos_tx = [75.69, 24.83]; % Fixed TX position for testing 2
-else
-    pos_tx = [50, 50]; % Fixed TX position for testing
-end
 
-
-% Compute absolute angles from each Rx to Tx and corresponding rotations
-[pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, NUM_RX, RX_RANDOMISED, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
-% Generate nuisance transmitted signal with random phase
-[s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY);
+%% Transmitter, receiver positions and angles
+% Transmitters
+pos_tx = map2d.genTXPos(area_size, TX_NUM, TX_RANDOMISED);
+[s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY); % Generate nuisance transmitted signal with random phase
+% Receivers
+[pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, RX_NUM, RX_RANDOMISED, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
 [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
 % Initialise DoA estimator
 ula = ULA(lambda, ELEMENT_NUM, element_spacing);    % Create Uniform Linear Array object
