@@ -34,7 +34,7 @@
 %       AoA measurements, and detection limits (optional)
 %
 % Author: Minh An Dao (Andreww)
-
+%#ok<*UNRCH,*NASGU> % Suppress warnings for unreachable code and unused variables
 clear; clc; close all;
 
 %% User Inputs and Configurations
@@ -44,26 +44,27 @@ RESOLUTION = 0.1;                   % Angle resolution (degrees)
 FIXED_TRANS_ENERGY = true;          % Use fixed transmission energy
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
-DOA_RESOLUTION = 1;               % Angle resolution (degrees)
+DOA_RESOLUTION = 1;                 % Angle resolution (degrees)
 OPT_GRID_DENSITY = 5;               % Define a coarse grid for initial guesses
-NUM_RX = 3;                        % Number of receivers
+NUM_RX = 3;                         % Number of receivers
 NUM_TX = 1;                         % Number of transmitters
-RANDOMISE_TX = true;               % Randomise TX positions
+TX_RANDOMISED = false;                % Randomise TX positions
+RX_RANDOMISED = false;               % Randomise RX positions and AoA
 SAFETY_DISTANCE = 5;                % Minimum distance between TX and RX (meters)
 area_size = 100;
 % Physical constants and wavelength
-SNR_dB = 0 * ones(1, NUM_RX);      % SNR in dB
+SNR_dB = 0 * ones(1, NUM_RX);       % SNR in dB
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
 lambda = c / fc;                    % Wavelength
-avg_amp_gain = 1;                           % Average gain of the channel
-L_d0=100;                                   % Reference Power (dB) - for gain calculation
-d0=100;                                     % Reference distance (m) - for gain calculation
-alpha=4;                                    % Path loss exponent - for gain calculation
-P_t = 1;                                    % W - Transmit signal power (known)                      
-Fs = 2 * fc;                                % Sample frequency, enough for the signal
-T = TIME_INST_NUM/Fs;                       % Period of transmission
-t = 0:1/Fs:(T-1/Fs);                        % Time vector for the signal
+avg_amp_gain = 1;                   % Average gain of the channel
+L_d0=100;                           % Reference Power (dB) - for gain calculation
+d0=100;                             % Reference distance (m) - for gain calculation
+alpha=4;                            % Path loss exponent - for gain calculation
+P_t = 1;                            % W - Transmit signal power (known)                      
+Fs = 2 * fc;                        % Sample frequency, enough for the signal
+T = TIME_INST_NUM/Fs;               % Period of transmission
+t = 0:1/Fs:(T-1/Fs);                % Time vector for the signal
 % --- Receive Antenna elements characteristics
 element_spacing = 0.5 * lambda;
 sweeping_angle = -90:RESOLUTION:90;
@@ -78,12 +79,17 @@ optimiser = Optimisers();
 algo = Algorithms(l4c, optimiser);
 map2d = Map2D([10,10], [90, 90], NUM_RX);
 map3d = Map3D(map2d);
-% Generate random transmitter position
-pos_tx = map2d.genTXPos(area_size, NUM_TX, RANDOMISE_TX);
-% pos_tx = [52.82, 61.35]; % Fixed TX position for testing
-% pos_tx = [75.69, 24.83]; % Fixed TX position for testing 2
+if TX_RANDOMISED
+    pos_tx = map2d.genTXPos(area_size, NUM_TX, TX_RANDOMISED); % Generate random transmitter position
+    % pos_tx = [52.82, 61.35]; % Fixed TX position for testing
+    % pos_tx = [75.69, 24.83]; % Fixed TX position for testing 2
+else
+    pos_tx = [50, 50]; % Fixed TX position for testing
+end
+
+
 % Compute absolute angles from each Rx to Tx and corresponding rotations
-[pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, NUM_RX, false, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
+[pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, NUM_RX, RX_RANDOMISED, SAFETY_DISTANCE, ABS_ANGLE_LIM, RESOLUTION);
 % Generate nuisance transmitted signal with random phase
 [s_t, e_avg] = channel.generateNuisanceSignal(fc, P_t, T, t, TIME_INST_NUM, FIXED_TRANS_ENERGY);
 [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
@@ -105,7 +111,7 @@ fprintf('\n');
 
 %% Find the Maximum Likelihood (ML) estimate of the transmitter position
 progressbar('reset', 1);     % Reset progress bar
-[optCoord, L_peak, error] = algo.MLOpt4mCentroid(...
+[pos_init, pos_est, L_peak, error] = algo.MLOpt4mCentroid(...
     pos_rx, rot_abs, y_centralised(1,:,:), ...
     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
     doa_estimator, pos_tx...
@@ -113,9 +119,12 @@ progressbar('reset', 1);     % Reset progress bar
 progressbar('end');  % This will display the total runtime
 
 % Add TX and estimation info
+str_randomised = {'fixed', 'randomised'};
 annotStrings = {};
+annotStrings{end+1} = sprintf('%s TX, %s RXs', str_randomised{1 + TX_RANDOMISED}, str_randomised{1 + RX_RANDOMISED});
 annotStrings{end+1} = sprintf('True TX: (%.2f, %.2f)', pos_tx(1), pos_tx(2));
-annotStrings{end+1} = sprintf('Est  TX: (%.2f, %.2f)', optCoord(1), optCoord(2));
+annotStrings{end+1} = sprintf('Initial TX: (%.2f, %.2f)', pos_init(1), pos_init(2));
+annotStrings{end+1} = sprintf('Est  TX: (%.2f, %.2f)', pos_est(1), pos_est(2));
 annotStrings{end+1} = sprintf('Opt L: %.2f', L_peak);
 annotStrings{end+1} = sprintf('Error: %.2f m', error);
 annotStrings{end+1} = sprintf('SNR:  %.0f dB', SNR_dB(1,1));
@@ -138,6 +147,8 @@ map3d.plots(X, Y, L, ...
     'YLabel', 'y (m)', ...
     'ZLabel', 'L(x,y)', ...
     'pos_tx', pos_tx, ...
+    'pos_init', pos_init, ...
+    'pos_est', pos_est, ...
     'pos_rx', pos_rx, ...
     'rot_abs', rot_abs, ...
     'area_size', area_size, ...

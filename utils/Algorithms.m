@@ -166,7 +166,7 @@ classdef Algorithms < handle
             end
         end
 
-        function [pos_est, opt_val, error] = MLOpt4mCentroid(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, doa_estimator, pos_act)
+        function [centroid, pos_est, opt_val, error] = MLOpt4mCentroid(obj, pos_rx, rot_abs, y_centralised, element_num, nPower, lb, ub, doa_estimator, pos_act)
             % Maximum likelihood optimization using centroid of all ray intersections
             %
             % Uses the centroid of all DoA ray intersections as the initial point for ML optimization.

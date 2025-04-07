@@ -66,6 +66,8 @@ classdef Map3D < handle
             addParameter(p, 'YLabel', 'y (m)', @ischar);
             addParameter(p, 'ZLabel', 'L(x,y)', @ischar);
             addParameter(p, 'pos_tx', [], @isnumeric);
+            addParameter(p, 'pos_init', [], @isnumeric);
+            addParameter(p, 'pos_est', [], @isnumeric);
             addParameter(p, 'pos_rx', [], @isnumeric);
             addParameter(p, 'rot_abs', [], @isnumeric);
             addParameter(p, 'area_size', 100, @isnumeric);
@@ -82,6 +84,8 @@ classdef Map3D < handle
             annotPos = p.Results.AnnotationPosition;
             AnnotationStrings = p.Results.AnnotationStrings;
             pos_tx = p.Results.pos_tx;
+            pos_init = p.Results.pos_init;
+            pos_est = p.Results.pos_est;
             pos_rx = p.Results.pos_rx;
             rot_abs = p.Results.rot_abs;
             area_size = p.Results.area_size;
@@ -116,7 +120,17 @@ classdef Map3D < handle
                 % Right Subplot: Map View with contours
                 subplot(1,2,2); hold on;
                 % Plot the 2D map first
-                obj.map2d.plots(pos_tx, pos_rx, rot_abs, area_size, aoa_act, angle_limit, show_options);
+                obj.map2d.plots( ...
+                    'pos_tx', pos_tx, ...
+                    'pos_init', pos_init, ...
+                    'pos_est', pos_est, ...
+                    'pos_rx', pos_rx, ...
+                    'rot_rx_abs', rot_abs, ...
+                    'area_size', area_size, ...
+                    'aoa_act', aoa_act, ...
+                    'angle_limit', angle_limit, ...
+                    'flags', show_options ...
+                );
                 hold on;
                 % Overlay contours from the likelihood function
                 contour(x_data, y_data, z_data, 15, 'LineWidth', 0.8);

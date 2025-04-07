@@ -110,21 +110,52 @@ classdef Map2D < handle
             POS_RX = POS_RX(1:num_positions, :);
         end
 
-        function plots(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell)
+        function plots(obj, varargin)
+            % Parse inputs
+            p = inputParser;
+            addParameter(p, 'pos_tx', [], @isnumeric);
+            addParameter(p, 'pos_init', [], @isnumeric);
+            addParameter(p, 'pos_est', [], @isnumeric);
+            addParameter(p, 'pos_rx', [], @isnumeric);
+            addParameter(p, 'rot_rx_abs', [], @isnumeric);
+            addParameter(p, 'area_size', 100, @isnumeric);
+            addParameter(p, 'aoa_act', [], @isnumeric);
+            addParameter(p, 'angle_limit', 60, @isnumeric);
+            addParameter(p, 'flags', [true, true], @islogical);
+            addParameter(p, 'aoa_est_cell', {}, @iscell);
+            parse(p, varargin{:});
+
+            pos_tx = p.Results.pos_tx;
+            pos_init = p.Results.pos_init;
+            pos_est = p.Results.pos_est;
+            pos_rx = p.Results.pos_rx;
+            rot_rx_abs = p.Results.rot_rx_abs;
+            area_size = p.Results.area_size;
+            aoa_act = p.Results.aoa_act;
+            angle_limit = p.Results.angle_limit;
+            flags = p.Results.flags;
+            aoa_est_cell = p.Results.aoa_est_cell;
+
             num_rx = size(pos_rx, 1);
             num_tx = size(pos_tx, 1);
             rays_abs = cell(num_rx, 1);
             % --- For each Rx
             for rx_idx = 1:num_rx
                 % --- Plot the Rx positions
-                obj.addMarkers(pos_rx(rx_idx,1), pos_rx(rx_idx,2), ['R',num2str(rx_idx)], 'blue');
+                obj.addMarkers(pos_rx(rx_idx,1), pos_rx(rx_idx,2), 'o', 'blue', ['R',num2str(rx_idx)]);
                 for tx_idx = 1:num_tx
                     % --- Plot the Tx positions
-                    obj.addMarkers(pos_tx(tx_idx,1), pos_tx(tx_idx,2), ['T',num2str(tx_idx)], 'k');
+                    obj.addMarkers(pos_tx(tx_idx,1), pos_tx(tx_idx,2), 'o', 'k', ['T',num2str(tx_idx)]);
                     % Calculate the absolute rays
-                    rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx(tx_idx,:), rot_rx_abs(rx_idx), aoa_act(rx_idx), lim_angle);
+                    rays_abs{rx_idx} = obj.calAbsRays(pos_rx(rx_idx,:), pos_tx(tx_idx,:), rot_rx_abs(rx_idx), aoa_act(rx_idx), angle_limit);
                     % Draw connecting ray from Tx to Rx
                     % plot([pos_tx(tx_idx,1), pos_rx(rx_idx,1)], [pos_tx(tx_idx,2), pos_rx(rx_idx,2)], 'Color', [0.95, 0.65, 0.3], 'LineWidth', 1); hold on;
+                end
+                if ~isempty(pos_init) % --- Plot the initial and estimated positions
+                    obj.addMarkers(pos_init(1), pos_init(2), 'x', '#FF8C00', 'Initial');
+                end
+                if ~isempty(pos_est)
+                    obj.addMarkers(pos_est(1), pos_est(2), 'o', 'red', 'Est');
                 end
             end
 
@@ -171,7 +202,7 @@ classdef Map2D < handle
             if show_extra
                 % --- Plot the Tx positions
                 for tx_idx = 1:num_tx
-                    obj.addMarkers(pos_tx(tx_idx,1), pos_tx(tx_idx,2), ['T',num2str(tx_idx)], 'k');
+                    obj.addMarkers(pos_tx(tx_idx,1), pos_tx(tx_idx,2), 'o', 'k', ['T',num2str(tx_idx)]);
                 end
                 % --- Plot the Rx positions
                 for rx_idx = 1:num_rx
@@ -190,10 +221,10 @@ classdef Map2D < handle
             title('Map Visualisation'); grid on; hold off;
         end
 
-        function plotDetailed(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, angle_array, powdb_cell, method_list, aoa_est_cell)
+        function plotDetailed(obj, pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, angle_limit, flags, angle_array, powdb_cell, method_list, aoa_est_cell)
             figure('Name', 'Map and Spectrum Visualisation', 'WindowState', 'maximized'); clf; hold on;
             subplot(2,2,1);
-            obj.plots(pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, lim_angle, flags, aoa_est_cell);hold on;
+            obj.plots(pos_tx, pos_rx, rot_rx_abs, area_size, aoa_act, angle_limit, flags, aoa_est_cell);hold on;
             subplot(2,2,[3,4]);
             obj.plotSpectrum(angle_array, powdb_cell, method_list); hold on;
             subplot(2,2,2);
@@ -215,7 +246,7 @@ classdef Map2D < handle
                 if nargin == 5
                     for tx_idx = 1: tx_num
                         [est_pow, ~] = maxk(combinedSpectrum, tx_num); % Get the peaks to visualise the AoA on the spectrum plot 
-                        obj.addMarkers(aoa_est_cell{method_idx, tx_idx}, est_pow(tx_idx), ['DoA:', num2str(aoa_est_cell{method_idx, tx_idx}), '°; P:', num2str(est_pow(tx_idx)), 'dB'], 'red');
+                        obj.addMarkers(aoa_est_cell{method_idx, tx_idx}, est_pow(tx_idx), 'o', 'red', ['DoA:', num2str(aoa_est_cell{method_idx, tx_idx}), '°; P:', num2str(est_pow(tx_idx)), 'dB']);
                     end
                 end
             end
@@ -254,7 +285,7 @@ classdef Map2D < handle
             title('Spatial Spectrum (Polar)');
         end
 
-        function addMarkers(~, x, y, text_str, color)
+        function addMarkers(~, x, y, marker, color, text_str)
             %   Plots a marker at the given (x, y) coordinates with an associated text label.
             %
             % Inputs:
@@ -267,7 +298,7 @@ classdef Map2D < handle
             %   - A circle marker is plotted at (x, y) with a specified marker size and line width.
             %   - A text label is added with an offset from the (x, y) coordinates.
             %   - 'hold on' is called to retain the current plot when adding new elements.
-            plot(x, y, 'Marker', 'o', 'Color', color, 'MarkerSize', 10, 'LineWidth', 3, 'LineStyle', 'none'); hold on;
+            plot(x, y, 'Marker', marker, 'Color', color, 'MarkerSize', 10, 'LineWidth', 3, 'LineStyle', 'none'); hold on;
             text(x+1.5, y-2.5, text_str, 'Color', color, 'FontSize', 12); hold on;
         end
 
