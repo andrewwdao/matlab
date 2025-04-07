@@ -323,7 +323,6 @@ classdef Metric < handle
             %       'BinWidth' - Width of histogram bins (default = auto)
             %       'CapInfo' - Optional struct with capping information
             %       'SNRValues' - SNR values in dB corresponding to indices
-            %       'MaxError' - Maximum error to display on x-axis (default = auto)
             %       'ShowKDE' - Whether to show kernel density estimation (default = true)
             %       'CompareMethod' - Index of reference method for comparison (default = [])
             %       'CompareInSubplot' - Add comparison as subplot (true) or separate figure (false) (default = false)
@@ -334,7 +333,6 @@ classdef Metric < handle
             addParameter(p, 'BinWidth', []);  % Auto-calculate bin width if not specified
             addParameter(p, 'CapInfo', []);
             addParameter(p, 'SNRValues', []);
-            addParameter(p, 'MaxError', []);
             addParameter(p, 'ShowKDE', true); % Show KDE curve by default
             addParameter(p, 'CompareMethod', []);
             addParameter(p, 'CompareInSubplot', false); % Default to separate figure
@@ -344,7 +342,6 @@ classdef Metric < handle
             % Extract parameters
             cap_info = p.Results.CapInfo;
             snr_values = p.Results.SNRValues;
-            max_error = p.Results.MaxError;
             show_kde = p.Results.ShowKDE;
             compare_method = p.Results.CompareMethod;
             compare_in_subplot = p.Results.CompareInSubplot;
@@ -386,37 +383,20 @@ classdef Metric < handle
             end
             [rows, cols] = obj.subplot_layout(total_subplots);
             
-            % Collect overall statistics for auto-scaling
-            all_means = zeros(1, num_methods);
-            all_maxes = zeros(1, num_methods);
-            
-            % Pre-calculate statistics for all methods
-            for method_idx = 1:num_methods
-                errors = all_errors{snr_idx, method_idx};
-                all_means(method_idx) = mean(errors(:)); % Use (:) to ensure we get a scalar
-                all_maxes(method_idx) = max(errors(:));  % Use (:) to ensure we get a scalar
-            end
-            
-            % Determine global axis limits if not specified
-            if isempty(max_error)
-                % Use the maximum mean + 3*std or a reasonable cap
-                global_max_error = min(max(all_maxes), 3*max(all_means));
-            else
-                global_max_error = max_error;
-            end
-            
+            global_max_error = 0;
             % Create subplots for each method
             for method_idx = 1:num_methods
                 % Extract errors for current method at specified SNR
                 errors = all_errors{snr_idx, method_idx};
-                
+                method_max_error = min(max(errors), 1.5*mean(errors(:)));
                 % Auto-calculate bin width if not specified
                 if isempty(p.Results.BinWidth)
-                bin_width = max(1, (global_max_error/30));
+                    % Calculate method-specific bin width based on its error range
+                    method_bin_width = (method_max_error/30); % 30 bins for each method
+                    bin_width = method_bin_width;
                 else
-                bin_width = p.Results.BinWidth;
+                    bin_width = p.Results.BinWidth;
                 end
-                
                 % Calculate statistics
                 mean_error = mean(errors);
                 median_error = median(errors);
@@ -441,20 +421,98 @@ classdef Metric < handle
                 hold on;
                 
                 % Add KDE curve if requested
-                if show_kde
-                    % Add a small epsilon to zero values
-                    epsilon = 1e-10; % Small enough to be negligible for your position error scale
-                    adjusted_errors = errors;
-                    adjusted_errors(adjusted_errors == 0) = epsilon;
+                % if show_kde
+                %     % Add a small epsilon to zero values
+                %     epsilon = 1e-10;
+                %     positive_errors = errors;
+                %     positive_errors(positive_errors == 0) = epsilon;
                     
-                    % Now all values are positive
-                    [f, xi] = ksdensity(adjusted_errors, 'Support', 'positive');
-                    plot(xi, f, 'LineWidth', 2, 'Color', method_color*0.7);
-                end
-                
-                % % Add optimal error line at 0
-                xline(0, 'k--', 'Optimal', 'LineWidth', 1.5, 'LabelOrientation', 'horizontal');
-                
+                %     try
+                %         if ~isempty(positive_errors)
+                %             % Analyze distribution characteristics
+                %             error_skewness = skewness(positive_errors);
+                %             error_kurtosis = kurtosis(positive_errors);
+                %             cv = std(positive_errors) / mean(positive_errors); % coefficient of variation
+                            
+                %             % Select appropriate KDE method based on distribution characteristics
+                %             if cv > 1.2 || error_skewness > 2
+                %                 % Heavy-tailed or highly skewed data - use log-transform
+                %                 log_errors = log(positive_errors);
+                %                 [f_log, xi_log] = ksdensity(log_errors, 'Kernel', 'epanechnikov');
+                                
+                %                 % Transform back to original scale
+                %                 xi = exp(xi_log);
+                %                 f = f_log ./ xi; % Adjustment for variable transformation
+                %             elseif error_kurtosis > 3 && error_kurtosis <= 5
+                %                 % Moderately heavy-tailed - use Epanechnikov kernel with larger bandwidth
+                %                 bw = 1.2 * std(positive_errors) * length(positive_errors)^(-0.2);
+                %                 [f, xi] = ksdensity(positive_errors, 'Kernel', 'epanechnikov', 'Bandwidth', bw, 'Support', 'positive');
+                %             elseif length(positive_errors) < 100
+                %                 % Small sample size - use robust bandwidth
+                %                 bw = 1.06 * min(std(positive_errors), iqr(positive_errors)/1.34) * length(positive_errors)^(-0.2);
+                %                 [f, xi] = ksdensity(positive_errors, 'Bandwidth', bw, 'Support', 'positive');
+                %             else
+                %                 % Default case - adaptive bandwidth calculation manually
+                %                 bw_silverman = 0.9 * min(std(positive_errors), iqr(positive_errors)/1.34) * length(positive_errors)^(-0.2);
+                %                 [f, xi] = ksdensity(positive_errors, 'Bandwidth', bw_silverman, 'Support', 'positive');
+                %             end
+                            
+                %             % Scale the KDE curve to match histogram height
+                %             hist_counts = histcounts(positive_errors, 'Normalization', 'pdf');
+                %             if ~isempty(hist_counts)
+                %                 histMax = max(hist_counts);
+                %                 kdeMax = max(f);
+                %                 if kdeMax > 0
+                %                     scaling_factor = histMax / kdeMax;
+                %                     f = f * scaling_factor;
+                %                 end
+                %             end
+                            
+                %             % Fit theoretical distributions and find best match
+                %             [best_dist, best_params, gof] = obj.findBestDistribution(positive_errors);
+                            
+                %             % Plot KDE curve
+                %             plot(xi, f, 'LineWidth', 2, 'Color', method_color*0.7); hold on;
+                            
+                %             % Add distribution name to title or as text annotation
+                %             if exist('title_text', 'var')
+                %                 % Format parameters differently based on distribution type
+                %                 param_display = obj.formatDistParams(best_dist, best_params);
+                %                 title_text = sprintf('%s\nBest fit: %s %s (GoF: %.3f)', title_text, best_dist, param_display, gof);
+                %                 title(title_text);
+                %             else
+                %                 % Format parameters for annotation
+                %                 param_display = obj.formatDistParams(best_dist, best_params);
+                %                 text(0.5*max(xi), 0.7*max(f), sprintf('Best fit: %s %s\nGoF: %.3f', best_dist, param_display, gof), 'FontSize', 8);
+                                
+                %                 % Optionally plot the theoretical distribution
+                %                 x_range = linspace(0, max(xi), 200);
+                %                 if ~isempty(best_params) && ~strcmp(best_dist, 'unknown')
+                %                     y_theo = obj.distPDF(x_range, best_dist, best_params);
+                %                     % Scale theoretical PDF to match histogram height
+                %                     y_theo = y_theo * (max(f)/max(y_theo));
+                %                     plot(x_range, y_theo, '--', 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
+                %                 end
+                %             end
+                %             % Print distribution information to the terminal
+                %             method_name = '';
+                %             if exist('legend_names', 'var') && method_idx <= length(legend_names)
+                %                 method_name = legend_names{method_idx};
+                %             end
+
+                %             % Format and print the distribution info to terminal
+                %             param_display = obj.formatDistParams(best_dist, best_params);
+                %             fprintf('Method: %s, SNR Index: %d\n', method_name, snr_idx);
+                %             fprintf('  Best fit distribution: %s %s\n', best_dist, param_display);
+                %             fprintf('  Goodness of fit: %.3f\n', gof);
+                %             fprintf('  Distribution parameters: ');
+                %             disp(best_params);
+                %             fprintf('--------------------------\n');
+                %         end
+                %     catch e
+                %         warning(e.identifier, 'KDE calculation failed: %s', e.message);
+                %     end
+                % end
                 
                 % Create detailed title with statistics
                 if ~isempty(cap_info)
@@ -473,7 +531,8 @@ classdef Metric < handle
                 grid on;
                 
                 % Set consistent axis limits
-                xlim([0, global_max_error]);
+                xlim([0, method_max_error]);
+                global_max_error = max(global_max_error, method_max_error);
             end
             
             % Add comparison plot 
@@ -493,8 +552,99 @@ classdef Metric < handle
             sgtitle(fig_title, 'FontSize', 14, 'FontWeight', 'bold');
             end
         end
+
+        % Function to find the best theoretical distribution
+        function [best_dist, best_params, best_gof] = findBestDistribution(~, data)
+            % List of distributions to try
+            dists = {'gamma', 'rayleigh', 'weibull', 'lognormal', 'exponential'};
+            
+            best_gof = Inf;
+            best_dist = '';
+            best_params = [];
+            
+            for i = 1:length(dists)
+                dist_name = dists{i};
+                try
+                    % Fit distribution
+                    pd = fitdist(data, dist_name);
+                    
+                    % Calculate goodness of fit using Kolmogorov-Smirnov test
+                    [~, p] = kstest(data, 'CDF', [data, cdf(pd, data)]);
+                    
+                    % Alternative: use negative log-likelihood as goodness of fit
+                    % nll = negloglik(pd);
+                    
+                    % Calculate AIC (Akaike Information Criterion)
+                    if p < 0.05
+                        % Poor fit, higher AIC penalty
+                        aic = pd.NLogL + 4*length(pd.Params);
+                    else
+                        % Good fit by KS test
+                        aic = pd.NLogL + 2*length(pd.Params);
+                    end
+                    
+                    % If this distribution has better fit (smaller AIC)
+                    if aic < best_gof
+                        best_gof = aic;
+                        best_dist = dist_name;
+                        best_params = pd.Params;
+                    end
+                catch
+                    % Skip distributions that fail to fit
+                    continue;
+                end
+            end
+            
+            % If no distribution fit worked, return default
+            if isempty(best_dist)
+                best_dist = 'unknown';
+                best_params = [];
+                best_gof = Inf;
+            end
+        end
+
+        function param_display = formatDistParams(~, dist_name, params)
+            % Format distribution parameters for display
+            if isempty(params)
+                param_display = '';
+                return;
+            end
+            
+            switch dist_name
+                case 'gamma'
+                    param_display = sprintf('(α=%.2f, β=%.2f)', params(1), params(2));
+                case 'rayleigh'
+                    param_display = sprintf('(σ=%.2f)', params);
+                case 'weibull'
+                    param_display = sprintf('(α=%.2f, β=%.2f)', params(1), params(2));
+                case 'lognormal'
+                    param_display = sprintf('(μ=%.2f, σ=%.2f)', params(1), params(2));
+                case 'exponential'
+                    param_display = sprintf('(λ=%.2f)', params);
+                otherwise
+                    param_display = '';
+            end
+        end
         
-        function plot_comparison_subplot(~, all_errors, snr_idx, compare_method, legend_names, global_max_error, snr_values)
+        function y = distPDF(~, x, dist_name, params)
+            % Generate PDF values for a given distribution
+            switch dist_name
+                case 'gamma'
+                    y = gampdf(x, params(1), params(2));
+                case 'rayleigh'
+                    y = raylpdf(x, params);
+                case 'weibull'
+                    y = wblpdf(x, params(1), params(2));
+                case 'lognormal'
+                    y = lognpdf(x, params(1), params(2));
+                case 'exponential'
+                    y = exppdf(x, 1/params); % Convert rate to mean
+                otherwise
+                    y = zeros(size(x));
+            end
+        end
+        
+        function plot_comparison_subplot(~, all_errors, snr_idx, compare_method, legend_names, method_max_error, snr_values)
             % Helper function to create comparison plot (either as subplot or separate figure)
             
             % Get reference errors
@@ -567,7 +717,7 @@ classdef Metric < handle
             end
             
             % Set x-axis limits
-            xlim([0, global_max_error]);
+            xlim([0, method_max_error]);
         end
         
         function [rows, cols] = subplot_layout(~, n)
