@@ -1,12 +1,12 @@
 function plot_aoa_mlpos(all_errors, SNR_dB, metric, doa_est_methods, ...
-    NUM_RX_DOA, NUM_RX_ML, DOA_MODE, DOA_RESOLUTION, OPT_GRID_DENSITY, ...
+    RX_NUM, DOA_MODE, DOA_RESOLUTION, OPT_GRID_DENSITY, ...
     ELEMENT_NUM, TIME_INST_NUM, RANDOMISE_RX, CAP_ERROR, INCLUDE_CAPPED, ...
     COMPARE_EPDF_IN_SUBPLOT, ITERATION, METRIC_TO_PLOT, BAND_PERCENTILES)
     % This function handles all plotting logic for aoa_mlpos results
     
     nvar_snr = size(SNR_dB, 1);
     nvar_doa = numel(doa_est_methods);
-    nvar_mlpos = length(NUM_RX_ML);
+    nvar_mlpos = length(RX_NUM);
     num_legend = nvar_doa + nvar_mlpos*2;
     
     % Cap errors at the maximum theoretical value if needed
@@ -54,12 +54,12 @@ function plot_aoa_mlpos(all_errors, SNR_dB, metric, doa_est_methods, ...
             otherwise
                 modeString = DOA_MODE;
         end
-        legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA triage (', num2str(NUM_RX_DOA), ' RXs ', modeString];
+        legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA triage (2 RXs ', modeString];
     end
     
     for ml_idx = 1:nvar_mlpos
-        legend_name{nvar_doa+ml_idx} = ['MLpos ' num2str(NUM_RX_ML(ml_idx)) ' RXs (triage initial)'];
-        legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos ' num2str(NUM_RX_ML(ml_idx)) ' RXs (centroid initial)'];
+        legend_name{nvar_doa+ml_idx} = ['MLpos ' num2str(RX_NUM(ml_idx)) ' RXs (triage initial)'];
+        legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos ' num2str(RX_NUM(ml_idx)) ' RXs (centroid initial)'];
     end
     
     rx_type = {'fixed', 'randomised'};

@@ -38,10 +38,10 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-TX_RANDOMISED = true;              % Randomise TX positions
+TX_RANDOMISED = false;              % Randomise TX positions
 RX_RANDOMISED = false;              % Randomise RX positions and AoA
 TX_NUM = 1;                         % Number of transmitters
-RX_NUM = 3;                         % Number of receivers
+RX_NUM = 10;                         % Number of receivers
 ELEMENT_NUM = 4;                    % Number of ULA elements
 DOA_MODE = 'sweep';                 % DoA estimation mode ('sweep' or 'opt')
 DOA_RESOLUTION = 1;                 % Angle resolution (degrees)

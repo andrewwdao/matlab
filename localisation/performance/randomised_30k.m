@@ -2,11 +2,11 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-RUN_MODE = 'plot';                  % Options: 'test', 'plot' or 'save'
+RUN_MODE = 'save';                  % Options: 'test', 'plot' or 'save'
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
-CAP_ERROR = true;                  % Cap error values at the maximum theoretical value
+CAP_ERROR = false;                  % Cap error values at the maximum theoretical value
 INCLUDE_CAPPED = false;              % Include capped values in the output errors, only valid if CAP_ERROR is true
 COMPARE_EPDF_IN_SUBPLOT = false;     % Compare empirical PDFs in subplots
 
@@ -50,7 +50,7 @@ else
     end
 
     TX_RANDOMISED = false;              % Randomise TX positions
-    RX_RANDOMISED = false;              % Randomise RX positions and AoA
+    RX_RANDOMISED = true;              % Randomise RX positions and AoA
     TX_NUM = 1;                         % Number of transmitters
     RX_NUM = 3:7:24;                 % Additional receiver counts for ML optimization
     nvar_mlpos = length(RX_NUM);     % Number of variants for ML optimization

@@ -37,7 +37,19 @@ classdef Metric < handle
                 
                 for i = 1:rows
                     for j = 1:cols
-                        mse(i, j) = mean(errors{i, j}.^2);
+                        valid_errors = errors{i, j}(~isnan(errors{i, j}) & ~isinf(errors{i, j}));
+                        if isempty(valid_errors)
+                            mse(i, j) = NaN; % If no valid values remain, result is NaN
+                        else
+                            % Handle potential overflow during squaring
+                            max_safe_value = sqrt(realmax);
+                            if any(abs(valid_errors) > max_safe_value)
+                                % Option 1: Cap extremely large values
+                                too_large = abs(valid_errors) > max_safe_value;
+                                valid_errors(too_large) = sign(valid_errors(too_large)) * max_safe_value;
+                            end
+                            mse(i, j) = mean(valid_errors.^2);
+                        end
                     end
                 end
             else
