@@ -108,17 +108,12 @@ classdef Metric < handle
                 % For cell array of errors
                 [rows, cols] = size(errors);
                 
-                % Initialize structure with appropriate fields
-                if is_single_percentile
-                    percentiles = struct('val', zeros(rows, cols));
-                else
-                    % For 3 percentiles, assume [lower, median, upper]
-                    percentiles = struct('lower', zeros(rows, cols), ...
-                                        'val', zeros(rows, cols), ...
-                                        'upper', zeros(rows, cols));
-                    % Sort percentile values to ensure lower/middle/upper order
-                    percentile_values = sort(percentile_values);
-                end
+                % Initialize structure for 3 percentiles, assume [lower, median, upper]
+                percentiles = struct('lower', zeros(rows, cols), ...
+                                    'val', zeros(rows, cols), ...
+                                    'upper', zeros(rows, cols));
+                % Sort percentile values to ensure lower/middle/upper order
+                percentile_values = sort(percentile_values);
                 
                 % Calculate percentiles
                 for i = 1:rows
@@ -276,7 +271,7 @@ classdef Metric < handle
                     fill([x_data(:,i); flipud(x_data(:,i))], ...
                         [bandLower(:,i); flipud(bandUpper(:,i))], ...
                         lineColor, 'FaceAlpha', 0.2, 'EdgeColor', 'none', ...
-                        'DisplayName', [displayNames{i}, ' Confidence Band']);
+                        'DisplayName', [displayNames{i}, ' Variance']);
                 end
             end
             

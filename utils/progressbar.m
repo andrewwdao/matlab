@@ -129,9 +129,10 @@ switch lower(option)
         end
         fprintf(text2print);
         last_text_width = length(text2print);
-    
+
     case 'starttimer'
-        % Start timing an algorithm
+        % Start timing an algorithm with flexible structure
+        % Format: 'parent' or 'parent/child' or 'parent/child/grandchild'
         if nargin < 2
             error('Algorithm name must be provided');
         end
@@ -139,14 +140,45 @@ switch lower(option)
         algo_name = varargin{1};
         current_algo_name = algo_name;
         
-        % Initialize timer for this algorithm if it doesn't exist
-        if ~isfield(timers, algo_name)
-            timers.(algo_name) = struct('times', [], 'current_start', []);
+        % Parse structure using '/' as separator
+        parts = strsplit(algo_name, '/');
+        
+        % Initialize parent if it doesn't exist
+        parent = parts{1};
+        if ~isfield(timers, parent)
+            timers.(parent) = struct();
         end
         
-        % Record start time
-        timers.(algo_name).current_start = tic;
-        
+        % Handle single-level, 2-level, or 3-level hierarchy
+        if isscalar(parts)
+            % Single-level: just parent
+            if ~isfield(timers.(parent), 'times')
+                timers.(parent).times = [];
+                timers.(parent).current_start = [];
+            end
+            timers.(parent).current_start = tic;
+        elseif length(parts) == 2
+            % Two-level: parent/child
+            child = parts{2};
+            if ~isfield(timers.(parent), child)
+                timers.(parent).(child) = struct('times', [], 'current_start', []);
+            end
+            timers.(parent).(child).current_start = tic;
+        elseif length(parts) == 3
+            % Three-level: parent/child/grandchild
+            child = parts{2};
+            grandchild = parts{3};
+            if ~isfield(timers.(parent), child)
+                timers.(parent).(child) = struct();
+            end
+            if ~isfield(timers.(parent).(child), grandchild)
+                timers.(parent).(child).(grandchild) = struct('times', [], 'current_start', []);
+            end
+            timers.(parent).(child).(grandchild).current_start = tic;
+        else
+            error('Timer hierarchy must be either "parent", "parent/child", or "parent/child/grandchild"');
+        end
+    
     case 'stoptimer'
         % Stop timing an algorithm and record the elapsed time
         if nargin < 2
@@ -158,41 +190,154 @@ switch lower(option)
             algo_name = varargin{1};
         end
         
-        if ~isfield(timers, algo_name) || isempty(timers.(algo_name).current_start)
+        % Parse parent/child structure
+        parts = strsplit(algo_name, '/');
+        parent = parts{1};
+        
+        % Check if parent exists
+        if ~isfield(timers, parent)
             error('Timer for algorithm "%s" was not started', algo_name);
         end
         
-        % Calculate elapsed time
-        elapsed = toc(timers.(algo_name).current_start);
+        % Handle single-level, 2-level, or 3-level hierarchy
+        if isscalar(parts)
+            % Single-level: just parent
+            if ~isfield(timers.(parent), 'current_start') || isempty(timers.(parent).current_start)
+                error('Timer for algorithm "%s" was not started', algo_name);
+            end
+            elapsed = toc(timers.(parent).current_start);
+            timers.(parent).times(end+1) = elapsed;
+            timers.(parent).current_start = [];
+        elseif length(parts) == 2
+            % Two-level: parent/child
+            child = parts{2};
+            if ~isfield(timers.(parent), child) || isempty(timers.(parent).(child).current_start)
+                error('Timer for algorithm "%s" was not started', algo_name);
+            end
+            elapsed = toc(timers.(parent).(child).current_start);
+            timers.(parent).(child).times(end+1) = elapsed;
+            timers.(parent).(child).current_start = [];
+        elseif length(parts) == 3
+            % Three-level: parent/child/grandchild
+            child = parts{2};
+            grandchild = parts{3};
+            if ~isfield(timers.(parent), child) || ~isfield(timers.(parent).(child), grandchild) || ...
+            isempty(timers.(parent).(child).(grandchild).current_start)
+                error('Timer for algorithm "%s" was not started', algo_name);
+            end
+            elapsed = toc(timers.(parent).(child).(grandchild).current_start);
+            timers.(parent).(child).(grandchild).times(end+1) = elapsed;
+            timers.(parent).(child).(grandchild).current_start = [];
+        end
         
-        % Add to times array
-        timers.(algo_name).times(end+1) = elapsed;
-        timers.(algo_name).current_start = [];
         current_algo_name = '';
-    
+
     case 'reporttimers'
         % Report average execution times for all algorithms
         fprintf('\n===== Algorithm Execution Times =====\n');
         
-        algo_names = fieldnames(timers);
-        if isempty(algo_names)
+        % Initialize timer statistics structure
+        timer_stats = struct();
+        parents = fieldnames(timers);
+        
+        if isempty(parents)
             fprintf('No algorithm timers have been recorded.\n');
         else
-            for i = 1:length(algo_names)
-                name = algo_names{i};
-                times = timers.(name).times;
+            % Process each parent
+            for p = 1:length(parents)
+                parent = parents{p};
                 
-                if ~isempty(times)
-                    avg_time = mean(times);
-                    std_time = std(times);
-                    fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
-                        name, avg_time, std_time, length(times));
+                % Check if this is a parent with direct timing data
+                if isfield(timers.(parent), 'times')
+                    times = timers.(parent).times;
+                    if ~isempty(times)
+                        % Calculate statistics
+                        avg_time = mean(times);
+                        std_time = std(times);
+                        display_name = strrep(parent, '_', ' ');
+                        
+                        % Store statistics
+                        timer_stats.(parent) = struct(...
+                            'mean', avg_time, ...
+                            'std', std_time, ...
+                            'variance', std_time^2, ...
+                            'times', times, ...
+                            'count', length(times), ...
+                            'display_name', display_name);
+                        
+                        fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
+                            display_name, avg_time, std_time, length(times));
+                    end
+                    continue;  % Skip further processing for this parent
+                end
+                
+                % If we get here, the parent has child structures
+                timer_stats.(parent) = struct();
+                
+                % Get all child fields for this parent
+                children = fieldnames(timers.(parent));
+                
+                for c = 1:length(children)
+                    child = children{c};
+                    child_struct = timers.(parent).(child);
+                    
+                    % Check if this is a leaf node with times array
+                    if isfield(child_struct, 'times')
+                        times = child_struct.times;
+                        if ~isempty(times)
+                            % Calculate statistics
+                            avg_time = mean(times);
+                            std_time = std(times);
+                            display_name = strrep([parent, '/', child], '_', ' ');
+                            
+                            % Store statistics
+                            timer_stats.(parent).(child) = struct(...
+                                'mean', avg_time, ...
+                                'std', std_time, ...
+                                'variance', std_time^2, ...
+                                'times', times, ...
+                                'count', length(times), ...
+                                'display_name', display_name);
+                            
+                            fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
+                                display_name, avg_time, std_time, length(times));
+                        end
+                    else
+                        % This is another level of hierarchy (grandchildren)
+                        timer_stats.(parent).(child) = struct();
+                        grandchildren = fieldnames(child_struct);
+                        
+                        for g = 1:length(grandchildren)
+                            grandchild = grandchildren{g};
+                            times = child_struct.(grandchild).times;
+                            
+                            if ~isempty(times)
+                                % Calculate statistics
+                                avg_time = mean(times);
+                                std_time = std(times);
+                                display_name = strrep([parent, '/', child, '/', grandchild], '_', ' ');
+                                
+                                % Store statistics
+                                timer_stats.(parent).(child).(grandchild) = struct(...
+                                    'mean', avg_time, ...
+                                    'std', std_time, ...
+                                    'variance', std_time^2, ...
+                                    'times', times, ...
+                                    'count', length(times), ...
+                                    'display_name', display_name);
+                                
+                                fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
+                                    display_name, avg_time, std_time, length(times));
+                            end
+                        end
+                    end
                 end
             end
         end
         fprintf('====================================\n');
-    % Assign output
-    timer_output = timers;
+        
+        % Assign output
+        timer_output = timer_stats;
     
     case 'end'
         % force finish

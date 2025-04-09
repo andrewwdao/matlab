@@ -56,8 +56,8 @@ classdef Algorithms < handle
             result.y = abs_ray1.doa_slope * result.x + abs_ray1.doa_shift;
         end
 
-        function [pos_est, error] = DoAintersect(obj, pos_rx, rot_abs, y_centralised, doa_estimator, pos_act)
-            % DoAintersect Calculate the intersection point of DoA rays and estimate the transmitter position
+        function [pos_est, error] = DoAtriage(obj, pos_rx, rot_abs, y_centralised, doa_estimator, pos_act)
+            % DoAtriage Calculate the intersection point of DoA rays and estimate the transmitter position
             %
             % Inputs:
             %   pos_rx        - Receiver positions [2 × 2]
@@ -143,7 +143,7 @@ classdef Algorithms < handle
             % Outputs:
             %   pos_est       - Estimated transmitter coordinates [x, y]
             %   error         - Distance error between estimated and true position (if pos_act provided)
-            [aoa_intersect, ~] = obj.DoAintersect(pos_rx, rot_abs, y_centralised, @(signal) doa_estimator(signal));
+            [aoa_intersect, ~] = obj.DoAtriage(pos_rx, rot_abs, y_centralised, @(signal) doa_estimator(signal));
             % aoa_est = zeros(2, 1);           % Pre-allocate for Relative AoA estimation
             % rays_abs = cell(2, 1);               % Pre-allocate for absolute rays
             % % --- Estimate the AoA and the ray to that AoA for each receiver

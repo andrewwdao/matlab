@@ -22,7 +22,7 @@ if strcmp(RUN_MODE, 'plot')
         'COMPARE_EPDF_IN_SUBPLOT', COMPARE_EPDF_IN_SUBPLOT, ...
         'FLAG_PLOT', FLAG_PLOT);
 
-    %% Select which data file to load
+    % Select which data file to load
     [filename, pathname] = uigetfile('data/*.mat', 'Select a saved simulation result');
     if isequal(filename, 0)
         error('No file selected');
@@ -50,7 +50,7 @@ else
     end
 
     TX_RANDOMISED = false;              % Randomise TX positions
-    RX_RANDOMISED = true;              % Randomise RX positions and AoA
+    RX_RANDOMISED = false;              % Randomise RX positions and AoA
     TX_NUM = 1;                         % Number of transmitters
     RX_NUM = 3:7:24;                 % Additional receiver counts for ML optimization
     nvar_mlpos = length(RX_NUM);     % Number of variants for ML optimization
@@ -131,30 +131,40 @@ else
         for idx_snr=1:nvar_snr
             y_received = y_centralised(idx_snr, :);
             progressbar('step'); % Update progress bar
-            [~, all_errors{idx_snr, 1}(itr)] = algo.DoAintersect(...
+            % Time the DoAtriage algorithm
+            progressbar('starttimer', 'DoA_triage');
+            [~, all_errors{idx_snr, 1}(itr)] = algo.DoAtriage(...
                 pos_rx, rot_abs, y_received, ...
                 doa_estimator, pos_tx ...
             );
+            progressbar('stoptimer', 'DoA_triage');
         end
         
         %% --- ML optimization with additional receivers
         for ml_idx = 1:nvar_mlpos
+            % Create algorithm names with RX count
+            triage_timer_name = sprintf('triage_initial/ML%dRXs', RX_NUM(ml_idx));
+            centroid_timer_name = sprintf('centroid_initial/ML%dRXs', RX_NUM(ml_idx));
             % Loop through each SNR value
             for idx_snr=1:nvar_snr
                 pos_rx_active = pos_rx(1:RX_NUM(ml_idx),:);
                 y_received_active = y_centralised(idx_snr, 1:RX_NUM(ml_idx),:);
                 progressbar('step'); % Update progress bar
+                progressbar('starttimer', triage_timer_name); % Time the algorithm
                 [~, ~, all_errors{idx_snr, nvar_doa+ml_idx}(itr)] = algo.MLOpt4mDoAtriage(...
                     pos_rx_active, rot_abs, y_received_active, ...
                     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                     doa_estimator, pos_tx...
                 );
+                progressbar('stoptimer', triage_timer_name);
                 progressbar('step'); % Update progress bar
+                progressbar('starttimer', centroid_timer_name); % Time the algorithm
                 [~, ~, ~, all_errors{idx_snr, nvar_doa+nvar_mlpos+ml_idx}(itr)] = algo.MLOpt4mCentroid(...
                     pos_rx_active, rot_abs, y_received_active, ...
                     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                     doa_estimator, pos_tx...
                 );
+                progressbar('stoptimer', centroid_timer_name);
                 % progressbar('step'); % Update progress bar
                 % [~, ~, all_errors{idx_snr, nvar_doa+2*nvar_mlpos+ml_idx}(itr)] = algo.MLOptwGrid(...
                 %     pos_rx_active, rot_abs, y_received_active, ...
@@ -164,7 +174,8 @@ else
             end
         end
     end
-
+% After all iterations, report the execution times
+timer_stats = progressbar('reporttimers');
     %% Process results - either save or plot
     if SAVE_METRICS
         % Save metrics to file
@@ -186,8 +197,174 @@ end
 
 if FLAG_PLOT
     fprintf('Plotting results...\n');
-    plot_aoa_mlpos(all_errors, SNR_dB, metric, doa_est_methods, ...
-        RX_NUM, DOA_MODE, DOA_RESOLUTION, OPT_GRID_DENSITY, ...
-        ELEMENT_NUM, TIME_INST_NUM, RX_RANDOMISED, CAP_ERROR, INCLUDE_CAPPED, ...
-        COMPARE_EPDF_IN_SUBPLOT, ITERATION, METRIC_TO_PLOT, BAND_PERCENTILES);
+    nvar_snr = size(SNR_dB, 1);
+    nvar_doa = numel(doa_est_methods);
+    nvar_mlpos = length(RX_NUM);
+    num_legend = nvar_doa + nvar_mlpos*2;
+    
+    %% Cap errors at the maximum theoretical value if needed
+    area_size = 100; % This should be passed as parameter if it varies
+    capped_errors = [];
+    if CAP_ERROR
+        max_possible_error = sqrt(2) * area_size;
+        capped_errors = metric.capErrorValues(all_errors, max_possible_error, INCLUDE_CAPPED);
+        all_errors = capped_errors.values;
+    end
+
+    %% Select which metric to calculate and plot
+    percentiles = struct('lower', [], 'upper', []); % Initialize percentiles for error band
+    switch METRIC_TO_PLOT
+        case 'rmse'
+            plot_data = metric.cal_RMSE(all_errors);
+            metric_label = 'RMSE';
+        case 'p25'
+            plot_data = metric.cal_Percentiles(all_errors, 25).val;
+            metric_label = '25th Percentile';
+        case 'p75'
+            plot_data = metric.cal_Percentiles(all_errors, 75).val;
+            metric_label = '75th Percentile';
+        case 'band'
+            percentiles = metric.cal_Percentiles(all_errors, BAND_PERCENTILES);
+            plot_data = percentiles.val;
+            metric_label = 'Median with Error Band';
+        otherwise
+            METRIC_TO_PLOT = 'p50';
+            plot_data = metric.cal_Percentiles(all_errors).val;
+            metric_label = 'Median';
+    end
+    
+    %% Create display names and legends for all methods and plot the results
+    legend_name = cell(1, num_legend);
+    for i = 1:nvar_doa
+        switch DOA_MODE
+            case 'sweep'
+                modeString = [DOA_MODE, ' ', num2str(DOA_RESOLUTION), '\circ res)'];
+            case 'opt'
+                modeString = [DOA_MODE, ' ', num2str(OPT_GRID_DENSITY), ' grid)'];
+            otherwise
+                modeString = DOA_MODE;
+        end
+        legend_name{i} = [strrep(doa_est_methods(i).name, '_', ' '), ' DoA triage (2 RXs ', modeString];
+    end
+    
+    for ml_idx = 1:nvar_mlpos
+        legend_name{nvar_doa+ml_idx} = ['MLpos ' num2str(RX_NUM(ml_idx)) ' RXs (triage initial)'];
+        legend_name{nvar_doa+nvar_mlpos+ml_idx} = ['MLpos ' num2str(RX_NUM(ml_idx)) ' RXs (centroid initial)'];
+    end
+    
+    rx_type = {'fixed', 'randomised'};
+    cap_error = {'full', 'capped'};
+    excluded = {' excluded', ''};
+    annotStrings = {
+        ['RX Type: ', rx_type{1 + RX_RANDOMISED}], ...
+        ['ULA elements: ', num2str(ELEMENT_NUM)], ...
+        ['Time instances: ', num2str(TIME_INST_NUM)], ...
+        ['Error Metric: ', metric_label, ' (', cap_error{1+CAP_ERROR}, excluded{1+INCLUDE_CAPPED},')']
+    };
+    
+    % Plot the error metric
+    metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
+        'DisplayNames', legend_name, ...
+        'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, num_legend), ...
+        'BandLower', percentiles.lower, ...
+        'BandUpper', percentiles.upper, ...
+        'Title', ['Error Metric by estimation method (', num2str(ITERATION), ' iterations)'], ...
+        'YLabel', [metric_label, ' Error [m]'], ...
+        'ShowAnnotation', true, ...
+        'AnnotationStrings', annotStrings);
+    
+    %% Plot time statistics for each algorithm 
+    % Initialize data structures for each algorithm type
+    ml_triage = struct('rx', [], 'time', [], 'std', []);
+    ml_centroid = struct('rx', [], 'time', [], 'std', []);
+
+    % Extract ML with triage initial data
+    if isfield(timer_stats, 'triage_initial')
+        rx_fields = fieldnames(timer_stats.triage_initial);
+        for i = 1:length(rx_fields)
+            rx_field = rx_fields{i};
+            % Extract the RX count from "ML%dRXs" format
+            rx_match = regexp(rx_field, 'ML(\d+)RXs', 'tokens');
+            if ~isempty(rx_match)
+                rx_count = str2double(rx_match{1}{1});
+                ml_triage.rx(end+1) = rx_count;
+                ml_triage.time(end+1) = timer_stats.triage_initial.(rx_field).mean;
+                ml_triage.std(end+1) = timer_stats.triage_initial.(rx_field).std;
+            end
+        end
+    end
+
+    % Extract ML with centroid initial data
+    if isfield(timer_stats, 'centroid_initial')
+        rx_fields = fieldnames(timer_stats.centroid_initial);
+        for i = 1:length(rx_fields)
+            rx_field = rx_fields{i};
+            % Extract the RX count from "ML%dRXs" format
+            rx_match = regexp(rx_field, 'ML(\d+)RXs', 'tokens');
+            if ~isempty(rx_match)
+                rx_count = str2double(rx_match{1}{1});
+                ml_centroid.rx(end+1) = rx_count;
+                ml_centroid.time(end+1) = timer_stats.centroid_initial.(rx_field).mean;
+                ml_centroid.std(end+1) = timer_stats.centroid_initial.(rx_field).std;
+            end
+        end
+    end
+
+    % Sort data by RX count
+    [ml_triage.rx, idx] = sort(ml_triage.rx);
+    ml_triage.time = ml_triage.time(idx);
+    ml_triage.std = ml_triage.std(idx);
+
+    [ml_centroid.rx, idx] = sort(ml_centroid.rx);
+    ml_centroid.time = ml_centroid.time(idx);
+    ml_centroid.std = ml_centroid.std(idx);
+
+    % Create x_data and y_data for plotting
+    x_data = [ml_triage.rx', ml_centroid.rx', ml_triage.rx']; % Last column for reference line
+    y_data = [ml_triage.time', ml_centroid.time', repmat(timer_stats.DoA_triage.mean, size(ml_triage.rx'))];
+
+    % Create error bands
+    band_lower = [ml_triage.time' - ml_triage.std', ml_centroid.time' - ml_centroid.std', repmat(timer_stats.DoA_triage.mean - timer_stats.DoA_triage.std, size(ml_triage.rx'))];
+    band_upper = [ml_triage.time' + ml_triage.std', ml_centroid.time' + ml_centroid.std', repmat(timer_stats.DoA_triage.mean + timer_stats.DoA_triage.std, size(ml_triage.rx'))];
+
+    % Ensure no negative values in bands
+    band_lower(band_lower < 0) = 0;
+
+    % Plot execution times using the plots method
+    metric.plots(x_data, y_data, 'linear', ...
+        'DisplayNames', {' Triage initial ML', 'Centroid initial ML', 'DoA triage (reference)'}, ...
+        'ShowBands', [true, true, false], ...
+        'BandLower', band_lower, ...
+        'BandUpper', band_upper, ...
+        'Title', ['Time complexity Vs RX Count (', num2str(timer_stats.DoA_triage.count), ' iterations)'], ...
+        'XLabel', 'Number of Receivers (RX)', ...
+        'YLabel', 'Execution Time (seconds)', ...
+        'LegendLocation', 'northwest', ...
+        'ShowAnnotation', true);
+                            
+    % Optional: Add x-axis grid lines at each RX count
+    grid on;
+    xticks(unique([ml_triage.rx, ml_centroid.rx]));
+    
+    %% Plot empirical PDF of errors for selected SNR values
+    snr_indices = [1, ceil(nvar_snr/2), nvar_snr];
+    snr_values = mean(SNR_dB, 2);
+    pdf_title = ['Empirical PDF of Position Estimation Errors by Method (',...
+                rx_type{1 + RX_RANDOMISED},' RXs, ', num2str(ITERATION), ...
+                ' iterations, ', cap_error{1+CAP_ERROR}, excluded{1+INCLUDE_CAPPED},')'];
+    
+    metric.plot_epdf( ...
+        all_errors, legend_name, snr_indices, pdf_title, ...
+        'SNRValues', snr_values, ...
+        'CapInfo', capped_errors, ...
+        'CompareInSubplot', COMPARE_EPDF_IN_SUBPLOT);
+        
+    if CAP_ERROR
+        % Display capped error values if applicable
+        for idx = 1:num_legend
+            fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend_name{idx}, ...
+                capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
+        end
+    end
 end
+
