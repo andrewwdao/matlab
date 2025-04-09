@@ -47,6 +47,7 @@ classdef Metric < handle
                                 % Option 1: Cap extremely large values
                                 too_large = abs(valid_errors) > max_safe_value;
                                 valid_errors(too_large) = sign(valid_errors(too_large)) * max_safe_value;
+                                warning('Overflow detected in squaring errors. Values capped to avoid overflow.');
                             end
                             mse(i, j) = mean(valid_errors.^2);
                         end

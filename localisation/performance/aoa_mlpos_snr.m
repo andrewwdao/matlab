@@ -2,7 +2,7 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-RUN_MODE = 'plot';                  % Options: 'test', 'plot' or 'save'
+RUN_MODE = 'test';                  % Options: 'test', 'plot' or 'save'
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
@@ -22,7 +22,7 @@ if strcmp(RUN_MODE, 'plot')
         'COMPARE_EPDF_IN_SUBPLOT', COMPARE_EPDF_IN_SUBPLOT, ...
         'FLAG_PLOT', FLAG_PLOT);
 
-    %% Select which data file to load
+    % Select which data file to load
     [filename, pathname] = uigetfile('data/*.mat', 'Select a saved simulation result');
     if isequal(filename, 0)
         error('No file selected');
@@ -131,10 +131,13 @@ else
         for idx_snr=1:nvar_snr
             y_received = y_centralised(idx_snr, :);
             progressbar('step'); % Update progress bar
+            % Time the DoAintersect algorithm
+            progressbar('starttimer', 'DoAintersect');
             [~, all_errors{idx_snr, 1}(itr)] = algo.DoAintersect(...
                 pos_rx, rot_abs, y_received, ...
                 doa_estimator, pos_tx ...
             );
+            progressbar('stoptimer', 'DoAintersect');
         end
         
         %% --- ML optimization with additional receivers
@@ -144,17 +147,23 @@ else
                 pos_rx_active = pos_rx(1:RX_NUM(ml_idx),:);
                 y_received_active = y_centralised(idx_snr, 1:RX_NUM(ml_idx),:);
                 progressbar('step'); % Update progress bar
+                % Time the MLOpt4mDoAtriage algorithm
+                progressbar('starttimer', 'MLOpt4mDoAtriage');
                 [~, ~, all_errors{idx_snr, nvar_doa+ml_idx}(itr)] = algo.MLOpt4mDoAtriage(...
                     pos_rx_active, rot_abs, y_received_active, ...
                     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                     doa_estimator, pos_tx...
                 );
+                progressbar('stoptimer', 'MLOpt4mDoAtriage');
                 progressbar('step'); % Update progress bar
+                % Time the MLOpt4mCentroid algorithm
+                progressbar('starttimer', 'MLOpt4mCentroid');
                 [~, ~, ~, all_errors{idx_snr, nvar_doa+nvar_mlpos+ml_idx}(itr)] = algo.MLOpt4mCentroid(...
                     pos_rx_active, rot_abs, y_received_active, ...
                     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                     doa_estimator, pos_tx...
                 );
+                progressbar('stoptimer', 'MLOpt4mCentroid');
                 % progressbar('step'); % Update progress bar
                 % [~, ~, all_errors{idx_snr, nvar_doa+2*nvar_mlpos+ml_idx}(itr)] = algo.MLOptwGrid(...
                 %     pos_rx_active, rot_abs, y_received_active, ...
@@ -191,3 +200,5 @@ if FLAG_PLOT
         ELEMENT_NUM, TIME_INST_NUM, RX_RANDOMISED, CAP_ERROR, INCLUDE_CAPPED, ...
         COMPARE_EPDF_IN_SUBPLOT, ITERATION, METRIC_TO_PLOT, BAND_PERCENTILES);
 end
+% After all iterations, report the execution times
+timers = progressbar('reporttimers');
