@@ -203,9 +203,9 @@ classdef Metric < handle
                 numLines = 1;
                 y_data = y_data(:); % Ensure column vector
             else
-                [~, numLines] = size(y_data);
+                numLines = size(y_data, 2);
             end
-            
+            fprintf('Number of lines to plot: %d\n', numLines);
             % Make sure x_data is compatible with y_data
             if isvector(x_data) && length(x_data) == size(y_data, 1)
                 x_data = repmat(x_data(:), 1, numLines);
@@ -243,6 +243,7 @@ classdef Metric < handle
                             'MarkerSize', markerSize, ...
                             'DisplayName', displayNames{i});
                     case 'semilogy'
+                        fprintf('Plotting semilogy for line %d\n', i);
                         h_lines(i) = semilogy(x_data(:,i), y_data(:,i), ...
                             'LineStyle', lineStyle, ...
                             'Marker', marker, ...
@@ -277,10 +278,10 @@ classdef Metric < handle
             
             % Add title, labels, and legend
             title(p.Results.Title);
-            xlabel(p.Results.XLabel);
+            xlabel(p.Results.XLabel); xlim([min(min(x_data)), max(max(x_data))]);
             ylabel(p.Results.YLabel);
             legend('Location', p.Results.LegendLocation);
-            grid on;
+            grid on; xticks(unique(x_data(:))); % Add x-axis grid lines at each x_data point
             
             % Add annotation if requested
             if p.Results.ShowAnnotation && ~isempty(p.Results.AnnotationStrings)
