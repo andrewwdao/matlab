@@ -205,7 +205,7 @@ classdef Metric < handle
             else
                 numLines = size(y_data, 2);
             end
-            fprintf('Number of lines to plot: %d\n', numLines);
+            % fprintf('Number of lines to plot: %d\n', numLines);
             % Make sure x_data is compatible with y_data
             if isvector(x_data) && length(x_data) == size(y_data, 1)
                 x_data = repmat(x_data(:), 1, numLines);
@@ -243,7 +243,7 @@ classdef Metric < handle
                             'MarkerSize', markerSize, ...
                             'DisplayName', displayNames{i});
                     case 'semilogy'
-                        fprintf('Plotting semilogy for line %d\n', i);
+                        % fprintf('Plotting semilogy for line %d\n', i);
                         h_lines(i) = semilogy(x_data(:,i), y_data(:,i), ...
                             'LineStyle', lineStyle, ...
                             'Marker', marker, ...

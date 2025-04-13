@@ -229,10 +229,10 @@ classdef Algorithms < handle
             %   pos_opt_err    - Distance error between estimated and true position (if pos_act provided)
             %   opt_val        - Optimal value of the objective function (negative log-likelihood)
             rx_num = size(pos_rx, 1);
-            progressbar('starttimer', sprintf('triage/DoA%dRXs', rx_num));
+            progressbar('starttimer', sprintf('triage/Direct%dRXs', rx_num));
             % Calculate the initial point for ML optimization using the intersection of rays
             [pos_triage, pos_triage_err] = obj.DoAtriage(pos_rx, rot_abs, y_centralised, @(signal) doa_estimator(signal), pos_act);
-            progressbar('stoptimer', sprintf('triage/DoA%dRXs', rx_num));
+            progressbar('stoptimer', sprintf('triage/Direct%dRXs', rx_num));
             % Create objective function (convert maximization to minimization)
             obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             % Use the intersection point as initial point for ML optimization
@@ -315,10 +315,10 @@ classdef Algorithms < handle
             %     pos_centroid = [(lb(1) + ub(1))/2, (lb(2) + ub(2))/2];
             % end
             rx_num = size(pos_rx, 1);
-            progressbar('starttimer',  sprintf('centroid/DoA%dRXs', rx_num));
+            progressbar('starttimer',  sprintf('centroid/Direct%dRXs', rx_num));
             % --- Calculate the centroid of all DoA rays to estimate transmitter position
             [pos_centroid, pos_centroid_err] = obj.DoAcentroid(pos_rx, rot_abs, y_centralised, lb, ub, @(signal) doa_estimator(signal), pos_act);
-            progressbar('stoptimer',  sprintf('centroid/DoA%dRXs', rx_num));
+            progressbar('stoptimer',  sprintf('centroid/Direct%dRXs', rx_num));
             % Create objective function (convert maximization to minimization)
             obj2min = @(coor) -obj.l4c.likelihoodFromCoorSet(coor, pos_rx, rot_abs, y_centralised', element_num, nPower);
             % Use centroid as initial point for ML optimization

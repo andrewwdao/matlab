@@ -238,107 +238,43 @@ switch lower(option)
         % Report average execution times for all algorithms
         fprintf('\n===== Algorithm Execution Times =====\n');
         
-        % Initialize timer statistics structure
-        timer_stats = struct();
-        parents = fieldnames(timers);
+        % Initialize flattened output structure array
+        flat_timer_stats = struct('FullName', {}, 'Parent', {}, 'Name', {}, 'Mean', {}, 'Std', {}, 'Count', {}, 'Times', {});
         
-        if isempty(parents)
+        % Call recursive function to populate flat_timer_stats
+        if ~isempty(timers) && isstruct(timers)
+            timers_struct = timers; % Use a local copy
+            flat_timer_stats = process_timer_node(timers_struct, '', flat_timer_stats);
+        end
+
+        % --- Print the report (using the flat structure for easier iteration) ---
+        if isempty(flat_timer_stats)
             fprintf('No algorithm timers have been recorded.\n');
         else
-            % Process each parent
-            for p = 1:length(parents)
-                parent = parents{p};
-                
-                % Check if this is a parent with direct timing data
-                if isfield(timers.(parent), 'times')
-                    times = timers.(parent).times;
-                    if ~isempty(times)
-                        % Calculate statistics
-                        avg_time = mean(times);
-                        std_time = std(times);
-                        display_name = strrep(parent, '_', ' ');
-                        
-                        % Store statistics
-                        timer_stats.(parent) = struct(...
-                            'mean', avg_time, ...
-                            'std', std_time, ...
-                            'times', times, ...
-                            'count', length(times), ...
-                            'display_name', display_name);
-                        
-                        fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
-                            display_name, avg_time, std_time, length(times));
-                    end
-                    continue;  % Skip further processing for this parent
-                end
-                
-                % If we get here, the parent has child structures
-                timer_stats.(parent) = struct();
-                
-                % Get all child fields for this parent
-                children = fieldnames(timers.(parent));
-                
-                for c = 1:length(children)
-                    child = children{c};
-                    child_struct = timers.(parent).(child);
-                    
-                    % Check if this is a leaf node with times array
-                    if isfield(child_struct, 'times')
-                        times = child_struct.times;
-                        if ~isempty(times)
-                            % Calculate statistics
-                            avg_time = mean(times);
-                            std_time = std(times);
-                            display_name = strrep([parent, '/', child], '_', ' ');
-                            
-                            % Store statistics
-                            timer_stats.(parent).(child) = struct(...
-                                'mean', avg_time, ...
-                                'std', std_time, ...
-                                'variance', std_time^2, ...
-                                'times', times, ...
-                                'count', length(times), ...
-                                'display_name', display_name);
-                            
-                            fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
-                                display_name, avg_time, std_time, length(times));
-                        end
-                    else
-                        % This is another level of hierarchy (grandchildren)
-                        timer_stats.(parent).(child) = struct();
-                        grandchildren = fieldnames(child_struct);
-                        
-                        for g = 1:length(grandchildren)
-                            grandchild = grandchildren{g};
-                            times = child_struct.(grandchild).times;
-                            
-                            if ~isempty(times)
-                                % Calculate statistics
-                                avg_time = mean(times);
-                                std_time = std(times);
-                                display_name = strrep([parent, '/', child, '/', grandchild], '_', ' ');
-                                
-                                % Store statistics
-                                timer_stats.(parent).(child).(grandchild) = struct(...
-                                    'mean', avg_time, ...
-                                    'std', std_time, ...
-                                    'variance', std_time^2, ...
-                                    'times', times, ...
-                                    'count', length(times), ...
-                                    'display_name', display_name);
-                                
-                                fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
-                                    display_name, avg_time, std_time, length(times));
-                            end
-                        end
-                    end
+            % Sort by FullName for consistent printing order (optional)
+            try % Sorting might fail if FullName is not always a string
+                [~, sort_idx] = sort({flat_timer_stats.FullName});
+                flat_timer_stats = flat_timer_stats(sort_idx);
+            catch
+                % Proceed without sorting if error occurs
+            end
+
+            for i = 1:length(flat_timer_stats)
+                stat = flat_timer_stats(i);
+                % Ensure fields exist before accessing
+                if isfield(stat, 'FullName') && isfield(stat, 'Mean') && isfield(stat, 'Std') && isfield(stat, 'Count')
+                    display_name = strrep(stat.FullName, '_', ' '); % Use FullName for display
+                    fprintf('%s: %.4f s (±%.4f s) over %d runs\n', ...
+                        display_name, stat.Mean, stat.Std, stat.Count);
                 end
             end
         end
+        
         fprintf('====================================\n');
         
-        % Assign output
-        timer_output = timer_stats;
+        % Assign the *flattened* structure array as the output
+        timer_output = flat_timer_stats; % Return the flat structure
+        
     
     case 'end'
         % force finish
@@ -418,4 +354,62 @@ function s = seconds2str(t)
         end
     end
     
+end
+
+function flat_stats = process_timer_node(node, current_path, flat_stats)
+    if ~isstruct(node)
+        return; % Stop if node is not a structure
+    end
+    fields = fieldnames(node);
+    for i = 1:length(fields)
+        field_name = fields{i};
+        % Skip internal fields if they exist at this level by mistake
+        if strcmp(field_name, 'times') || strcmp(field_name, 'current_start')
+            continue;
+        end
+        
+        sub_node = node.(field_name);
+        
+        % Construct the full path for this node
+        if isempty(current_path)
+            full_name = field_name;
+        else
+            full_name = [current_path '/' field_name];
+        end
+
+        % Check if this is a leaf node (contains 'times' field)
+        if isstruct(sub_node) && isfield(sub_node, 'times') && ~isempty(sub_node.times)
+            times = sub_node.times;
+            % Ensure times is numeric before calculations
+            if isnumeric(times)
+                avg_time = mean(times);
+                std_time = std(times);
+                count = length(times);
+                
+                % Extract parent and name
+                path_parts = strsplit(full_name, '/');
+                if length(path_parts) > 1
+                    parent_name = strjoin(path_parts(1:end-1), '/');
+                    leaf_name = path_parts{end};
+                else
+                    parent_name = ''; % Top-level timer
+                    leaf_name = full_name;
+                end
+
+                % Add entry to the flat structure array
+                new_entry = struct(...
+                    'FullName', full_name, ...
+                    'Parent', parent_name, ...
+                    'Name', leaf_name, ...
+                    'Mean', avg_time, ...
+                    'Std', std_time, ...
+                    'Count', count, ...
+                    'Times', times);
+                flat_stats(end+1) = new_entry;
+            end
+            
+        elseif isstruct(sub_node) % It's an intermediate node, recurse
+            flat_stats = process_timer_node(sub_node, full_name, flat_stats);
+        end
+    end
 end
