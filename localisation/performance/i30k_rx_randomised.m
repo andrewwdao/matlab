@@ -50,7 +50,7 @@ else
     end
 
     TX_RANDOMISED = false;              % Randomise TX positions
-    RX_RANDOMISED = false;              % Randomise RX positions and AoA
+    RX_RANDOMISED = true;              % Randomise RX positions and AoA
     TX_NUM = 1;                         % Number of transmitters
     RX_NUM = 3:7:24;                 % Additional receiver counts for ML optimization
     nvar_rx = length(RX_NUM);     % Number of variants for ML optimization

@@ -49,8 +49,8 @@ else
         SAVE_METRICS = true;
     end
 
-    TX_RANDOMISED = false;              % Randomise TX positions
-    RX_RANDOMISED = true;              % Randomise RX positions and AoA
+    TX_RANDOMISED = true;              % Randomise TX positions
+    RX_RANDOMISED = false;              % Randomise RX positions and AoA
     TX_NUM = 1;                         % Number of transmitters
     RX_NUM = 3:7:24;                 % Additional receiver counts for ML optimization
     nvar_rx = length(RX_NUM);     % Number of variants for ML optimization
@@ -100,11 +100,13 @@ else
         'extra_args', {{}} ...         % extra args required for specific type of estimator
     );
     nvar_doa_est = numel(methods_doa_est); % Get number of methods from the struct array
-    method_pos_est = {
-        'Centroid Direct ', 'Centroid MLpos ', 'Triage Direct ', 'Triage MLpos '
-    };
-    nvar_pos_est = length(method_pos_est); % Get number of methods from the cell array
-    legend4metric_num = nvar_rx*nvar_pos_est; % Number of methods to plot
+    % Define methods with merge configuration
+    method_pos_est = struct(...
+        'name', {'Centroid Direct ', 'Centroid MLpos ', 'Triage Direct ', 'Triage MLpos '}, ...
+        'merge_rx', {false, false, true, false} ...  % Only merge Triage Direct across RX counts
+    );
+    nvar_pos_est = length(method_pos_est);
+    legend4metric_num = nvar_rx*nvar_pos_est - sum([method_pos_est.merge_rx])*(nvar_rx-1); % Adjust legend count
     
     %% Transmitter, receiver positions and angles
     % Transmitters
@@ -124,25 +126,12 @@ else
         % --- Generate receivers and the received signal for the maximum number of receivers
         [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, max(RX_NUM), RX_RANDOMISED, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
         [nPower, y_centralised] = channel.generateReceivedSignal(s_t, pos_tx, pos_rx, aoa_act, e_avg, SNR_dB, L_d0, d0, alpha, ELEMENT_NUM, element_spacing, lambda);
-
-        % %% --- DoA estimation only
-        % for idx_snr=1:nvar_snr
-        %     y_received = y_centralised(idx_snr, :);
-        %     progressbar('step'); % Update progress bar
-        %     % Time the DoAtriage algorithm
-        %     progressbar('starttimer', 'DoA_triage');
-        %     [~, all_errors{idx_snr, 1}(itr)] = algo.DoAtriage(...
-        %         pos_rx, rot_abs, y_received, ...
-        %         doa_estimator, pos_tx ...
-        %     );
-        %     progressbar('stoptimer', 'DoA_triage');
-        % end
         
-        %% --- ML optimization with additional receivers
+        %% --- Algorithms for position estimation
         for idx_rx = 1:nvar_rx
             % Create algorithm names with RX count
-            timer_triage = sprintf('triage/MLpos%dRXs', RX_NUM(idx_rx));
             timer_centroid = sprintf('centroid/MLpos%dRXs', RX_NUM(idx_rx));
+            timer_triage = sprintf('triage/MLpos%dRXs', RX_NUM(idx_rx));
             % Loop through each SNR value
             for idx_snr=1:nvar_snr
                 pos_rx_active = pos_rx(1:RX_NUM(idx_rx),:);
@@ -211,21 +200,21 @@ if FLAG_PLOT
     percentiles = struct('lower', [], 'upper', []); % Initialize percentiles for error band
     switch METRIC_TO_PLOT
         case 'rmse'
-            plot_data = metric.cal_RMSE(all_errors);
+            metric_plot_data = metric.cal_RMSE(all_errors);
             metric_label = 'RMSE';
         case 'p25'
-            plot_data = metric.cal_Percentiles(all_errors, 25).val;
+            metric_plot_data = metric.cal_Percentiles(all_errors, 25).val;
             metric_label = '25th Percentile';
         case 'p75'
-            plot_data = metric.cal_Percentiles(all_errors, 75).val;
+            metric_plot_data = metric.cal_Percentiles(all_errors, 75).val;
             metric_label = '75th Percentile';
         case 'band'
             percentiles = metric.cal_Percentiles(all_errors, BAND_PERCENTILES);
-            plot_data = percentiles.val;
+            metric_plot_data = percentiles.val;
             metric_label = 'Median with Error Band';
         otherwise
             METRIC_TO_PLOT = 'p50';
-            plot_data = metric.cal_Percentiles(all_errors).val;
+            metric_plot_data = metric.cal_Percentiles(all_errors).val;
             metric_label = 'Median';
     end
     
@@ -251,17 +240,94 @@ if FLAG_PLOT
     };
 
     %% --- Plot the error metric for each algorithm 
+
     % Create display names and legends for all methods and plot the results
     legend4metric_name = cell(1, legend4metric_num);
-    % Create legend names for all methods dynamically
+    metric_plot_data_merged = zeros(size(metric_plot_data, 1), legend4metric_num);
+
+    % Initialize counters for legend and data
+    legend_idx = 1;
+    data_col = 1;
+    % Process each method according to merge settings
     for idx_method = 1:nvar_pos_est
-        for idx_rx = 1:nvar_rx
-            legend4metric_name{(idx_method-1)*nvar_rx + idx_rx} = [method_pos_est{idx_method}, num2str(RX_NUM(idx_rx)) ' RXs'];
+        if method_pos_est(idx_method).merge_rx
+            % For methods to merge, average across all RX counts
+            merged_data = zeros(size(metric_plot_data, 1), 1);
+            
+            % Calculate average across all RX counts for this method
+            for idx_rx = 1:nvar_rx
+                orig_idx = (idx_method-1)*nvar_rx + idx_rx;
+                merged_data = merged_data + metric_plot_data(:, orig_idx);
+            end
+            merged_data = merged_data / nvar_rx; % Average the data
+            
+            % Store the merged data
+            metric_plot_data_merged(:, data_col) = merged_data;
+            
+            % Create a single legend entry for the merged method
+            legend4metric_name{legend_idx} = [method_pos_est(idx_method).name, '(x4 itr)'];
+            
+            legend_idx = legend_idx + 1;
+            data_col = data_col + 1;
+        else
+            % For other methods, keep separate entries for each RX count
+            for idx_rx = 1:nvar_rx
+                orig_idx = (idx_method-1)*nvar_rx + idx_rx;
+                
+                % Copy the data
+                metric_plot_data_merged(:, data_col) = metric_plot_data(:, orig_idx);
+                
+                % Create legend name with RX count
+                legend4metric_name{legend_idx} = [method_pos_est(idx_method).name, num2str(RX_NUM(idx_rx)), ' RXs'];
+                
+                legend_idx = legend_idx + 1;
+                data_col = data_col + 1;
+            end
         end
     end
 
-    % Plot the error metric
-    metric.plots(mean(SNR_dB, 2), plot_data, 'semilogy', ...
+    % Update bands if applicable
+    if strcmp(METRIC_TO_PLOT, 'band')
+        merged_band_lower = zeros(size(percentiles.lower, 1), legend4metric_num);
+        merged_band_upper = zeros(size(percentiles.upper, 1), legend4metric_num);
+        
+        % Reset counters
+        data_col = 1;
+        
+        % Process each method
+        for idx_method = 1:nvar_pos_est
+            if method_pos_est(idx_method).merge_rx
+                % For methods to merge, average bands across all RX counts
+                lower_merged = zeros(size(percentiles.lower, 1), 1);
+                upper_merged = zeros(size(percentiles.upper, 1), 1);
+                
+                for idx_rx = 1:nvar_rx
+                    orig_idx = (idx_method-1)*nvar_rx + idx_rx;
+                    lower_merged = lower_merged + percentiles.lower(:, orig_idx);
+                    upper_merged = upper_merged + percentiles.upper(:, orig_idx);
+                end
+                
+                merged_band_lower(:, data_col) = lower_merged / nvar_rx;
+                merged_band_upper(:, data_col) = upper_merged / nvar_rx;
+                data_col = data_col + 1;
+            else
+                % For other methods, keep separate entries
+                for idx_rx = 1:nvar_rx
+                    orig_idx = (idx_method-1)*nvar_rx + idx_rx;
+                    merged_band_lower(:, data_col) = percentiles.lower(:, orig_idx);
+                    merged_band_upper(:, data_col) = percentiles.upper(:, orig_idx);
+                    data_col = data_col + 1;
+                end
+            end
+        end
+        
+        % Update percentiles with merged data
+        percentiles.lower = merged_band_lower;
+        percentiles.upper = merged_band_upper;
+    end
+
+    % Plot with the merged data
+    metric.plots(mean(SNR_dB, 2), metric_plot_data_merged, 'semilogy', ...
         'DisplayNames', legend4metric_name, ...
         'ShowBands', strcmp(METRIC_TO_PLOT, 'band') * ones(1, legend4metric_num), ...
         'BandLower', percentiles.lower, ...
@@ -279,9 +345,9 @@ if FLAG_PLOT
 
     % Prepare data structures for plotting
     max_entries = length(timer_stats); % Maximum possible unique combinations
-    plot_data = repmat(struct('Parent', '', 'Type', '', 'RX', [], 'Mean', [], 'Std', []), 1, max_entries);
-    plot_data_count = 0; % Track actual used entries
-    iteration_count = 0; % To store the number of iterations
+    timer_stats_plot_data = repmat(struct('Parent', '', 'Type', '', 'RX', [], 'Mean', [], 'Std', []), 1, max_entries);
+    timer_stats_cnt = 0; % Track actual used entries
+    itr_cnt = 0; % To store the number of iterations
 
     % --- Aggregate data from timer_stats ---
     for i = 1:length(timer_stats)
@@ -295,22 +361,22 @@ if FLAG_PLOT
             rx_count = str2double(rx_match{2});
             parent_name = entry.Parent;
 
-            % Find if this parent/type combo already exists in plot_data
+            % Find if this parent/type combo already exists in timer_stats_plot_data
             found = false;
-            for k = 1:plot_data_count
-                if strcmp(plot_data(k).Parent, parent_name) && strcmp(plot_data(k).Type, timer_type)
-                    plot_data(k).RX(end+1) = rx_count;
-                    plot_data(k).Mean(end+1) = entry.Mean;
-                    plot_data(k).Std(end+1) = entry.Std;
+            for k = 1:timer_stats_cnt
+                if strcmp(timer_stats_plot_data(k).Parent, parent_name) && strcmp(timer_stats_plot_data(k).Type, timer_type)
+                    timer_stats_plot_data(k).RX(end+1) = rx_count;
+                    timer_stats_plot_data(k).Mean(end+1) = entry.Mean;
+                    timer_stats_plot_data(k).Std(end+1) = entry.Std;
                     found = true;
                     break;
                 end
             end
             
-            % If not found, add a new entry to plot_data
+            % If not found, add a new entry to timer_stats_plot_data
             if ~found
-                plot_data_count = plot_data_count + 1;
-                plot_data(plot_data_count) = struct(...
+                timer_stats_cnt = timer_stats_cnt + 1;
+                timer_stats_plot_data(timer_stats_cnt) = struct(...
                     'Parent', parent_name, ...
                     'Type', timer_type, ...
                     'RX', rx_count, ...
@@ -318,28 +384,28 @@ if FLAG_PLOT
                     'Std', entry.Std);
             end
 
-            if iteration_count == 0 && isfield(entry, 'Count')
-                iteration_count = entry.Count;
+            if itr_cnt == 0 && isfield(entry, 'Count')
+                itr_cnt = entry.Count;
             end
         end
     end
 
     % Trim unused entries
-    plot_data = plot_data(1:plot_data_count);
+    timer_stats_plot_data = timer_stats_plot_data(1:timer_stats_cnt);
 
-    % --- Prepare final arrays for plotting from aggregated plot_data ---
+    % --- Prepare final arrays for plotting from aggregated timer_stats_plot_data ---
     % First calculate the sizes needed for each array
-    x_data = cell(1, plot_data_count);
-    y_data = cell(1, plot_data_count);
-    lower_data = cell(1, plot_data_count);
-    upper_data = cell(1, plot_data_count);
-    final_legend_names = cell(1, plot_data_count);
+    x_data = cell(1, timer_stats_cnt);
+    y_data = cell(1, timer_stats_cnt);
+    lower_data = cell(1, timer_stats_cnt);
+    upper_data = cell(1, timer_stats_cnt);
+    final_legend_names = cell(1, timer_stats_cnt);
 
-    for k = 1:length(plot_data)
+    for k = 1:length(timer_stats_plot_data)
         % Sort data by RX count for plotting
-        [sorted_rx, sort_idx] = sort(plot_data(k).RX);
-        sorted_mean = plot_data(k).Mean(sort_idx);
-        sorted_std = plot_data(k).Std(sort_idx);
+        [sorted_rx, sort_idx] = sort(timer_stats_plot_data(k).RX);
+        sorted_mean = timer_stats_plot_data(k).Mean(sort_idx);
+        sorted_std = timer_stats_plot_data(k).Std(sort_idx);
         
         % Store in cell arrays
         x_data{k} = sorted_rx';
@@ -348,9 +414,9 @@ if FLAG_PLOT
         upper_data{k} = sorted_mean' + sorted_std';
         
         % Generate legend name
-        parent_display = strrep(plot_data(k).Parent, '_', ' ');
+        parent_display = strrep(timer_stats_plot_data(k).Parent, '_', ' ');
         parent_display = [upper(parent_display(1)), parent_display(2:end)]; % Capitalize
-        final_legend_names{k} = sprintf('%s %s', parent_display, plot_data(k).Type);
+        final_legend_names{k} = sprintf('%s %s', parent_display, timer_stats_plot_data(k).Type);
     end
 
     % Convert cell arrays to matrices for plotting
@@ -367,7 +433,7 @@ if FLAG_PLOT
             'ShowBands', true(1, size(x_plot, 2)), ... % Show bands for all lines
             'BandLower', band_lower_plot, ...
             'BandUpper', band_upper_plot, ...
-            'Title', ['Time complexity Vs RX Count (', num2str(iteration_count), ' iterations)'], ...
+            'Title', ['Time complexity Vs RX Count (', num2str(itr_cnt), ' iterations)'], ...
             'XLabel', 'Number of Receivers (RX)', ...
             'YLabel', 'Execution Time (seconds)', ...
             'LegendLocation', 'north', ... 
