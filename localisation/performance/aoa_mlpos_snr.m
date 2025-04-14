@@ -12,33 +12,50 @@ COMPARE_EPDF_IN_SUBPLOT = false;     % Compare empirical PDFs in subplots
 
 FLAG_PLOT = strcmp(RUN_MODE, 'test') || strcmp(RUN_MODE, 'plot'); % Flag for plotting
 if strcmp(RUN_MODE, 'plot')
-    % Save current UI settings before loading
-    original_settings = struct(...
-        'METRIC_TO_PLOT', METRIC_TO_PLOT, ...
-        'BAND_PERCENTILES', BAND_PERCENTILES, ...
-        'SHOW_ERROR_BAND', SHOW_ERROR_BAND, ...
-        'CAP_ERROR', CAP_ERROR, ...
-        'INCLUDE_CAPPED', INCLUDE_CAPPED, ...
-        'COMPARE_EPDF_IN_SUBPLOT', COMPARE_EPDF_IN_SUBPLOT, ...
-        'FLAG_PLOT', FLAG_PLOT);
-
+    % Get all variables that exist after line 11
+    original_vars = who();
+    
+    % Store their values in a structure
+    original_values = struct();
+    for i = 1:length(original_vars)
+        var_name = original_vars{i};
+        original_values.(var_name) = evalin('base', var_name);
+    end
+    
     % Select which data file to load
     [filename, pathname] = uigetfile('data/*.mat', 'Select a saved simulation result');
     if isequal(filename, 0)
         error('No file selected');
     end
     
-    % Load the data file
-    load(fullfile(pathname, filename));
+    % Check if 'original_values' exists in the file 
+    file_info = who('-file', fullfile(pathname, filename));
+    has_original_values = ismember('original_values', file_info);
     
-    % Restore original UI settings
-    METRIC_TO_PLOT = original_settings.METRIC_TO_PLOT;
-    BAND_PERCENTILES = original_settings.BAND_PERCENTILES;
-    SHOW_ERROR_BAND = original_settings.SHOW_ERROR_BAND;
-    CAP_ERROR = original_settings.CAP_ERROR;
-    INCLUDE_CAPPED = original_settings.INCLUDE_CAPPED;
-    COMPARE_EPDF_IN_SUBPLOT = original_settings.COMPARE_EPDF_IN_SUBPLOT;
-    FLAG_PLOT = original_settings.FLAG_PLOT;
+    if has_original_values
+        % Load the file but exclude 'original_values'
+        S = load(fullfile(pathname, filename));
+        if isfield(S, 'original_values')
+            S = rmfield(S, 'original_values');
+        end
+        
+        % Copy fields to workspace
+        field_names = fieldnames(S);
+        for i = 1:length(field_names)
+            assignin('base', field_names{i}, S.(field_names{i}));
+        end
+    else
+        % Load the data file normally if no conflict
+        load(fullfile(pathname, filename));
+    end
+    
+    % Restore the original variables, overriding what was loaded
+    for i = 1:length(original_vars)
+        var_name = original_vars{i};
+        if isfield(original_values, var_name)
+            assignin('base', var_name, original_values.(var_name));
+        end
+    end
 else
     % Set ITERATION based on run mode
     if strcmp(RUN_MODE, 'test')
@@ -194,6 +211,11 @@ if FLAG_PLOT
         max_possible_error = sqrt(2) * area_size;
         capped_errors = metric.capErrorValues(all_errors, max_possible_error, INCLUDE_CAPPED);
         all_errors = capped_errors.values;
+        % Display capped error values
+        for idx = 1:legend4metric_num
+            fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend4metric_name{idx}, ...
+                capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
+        end
     end
 
     %% --- Calculate selected metric
@@ -240,7 +262,6 @@ if FLAG_PLOT
     };
 
     %% --- Plot the error metric for each algorithm 
-
     % Create display names and legends for all methods and plot the results
     legend4metric_name = cell(1, legend4metric_num);
     metric_plot_data_merged = zeros(size(metric_plot_data, 1), legend4metric_num);
@@ -457,12 +478,4 @@ if FLAG_PLOT
     %     'SNRValues', snr_values, ...
     %     'CapInfo', capped_errors, ...
     %     'CompareInSubplot', COMPARE_EPDF_IN_SUBPLOT);
-        
-    % if CAP_ERROR
-    %     % Display capped error values if applicable
-    %     for idx = 1:legend4metric_num
-    %         fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend4metric_name{idx}, ...
-    %             capped_errors.cnt_capped{idx}, capped_errors.cnt_total{idx}, capped_errors.percentage{idx});
-    %     end
-    % end
 end
