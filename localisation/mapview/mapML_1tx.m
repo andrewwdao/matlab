@@ -104,17 +104,21 @@ fprintf('\n');
 
 %% Find the Maximum Likelihood (ML) estimate of the transmitter position
 progressbar('reset', 1);     % Reset progress bar
-[pos_init, pos_est, L_peak, error] = algo.MLOpt4mCentroid(...
+[pos_init, ~, pos_est, error, L_peak] = algo.MLOpt4mCentroid(...
     pos_rx, rot_abs, y_centralised(1,:,:), ...
     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
     doa_estimator, pos_tx...
 );
+% [~, all_errors{idx_snr, 1}(itr)] = algo.DoAtriage(...
+        %         pos_rx, rot_abs, y_received, ...
+        %         doa_estimator, pos_tx ...
+        %     );
 progressbar('end');  % This will display the total runtime
 
 % Add TX and estimation info
-str_randomised = {'fixed', 'randomised'};
+gen_type = {'fixed', 'randomised'};
 annotStrings = {};
-annotStrings{end+1} = sprintf('%s TX, %s RXs', str_randomised{1 + TX_RANDOMISED}, str_randomised{1 + RX_RANDOMISED});
+annotStrings{end+1} = sprintf('%d %s TX, %d %s RXs',TX_NUM, gen_type{1 + TX_RANDOMISED}, RX_NUM, gen_type{1 + RX_RANDOMISED});
 annotStrings{end+1} = sprintf('True TX: (%.2f, %.2f)', pos_tx(1), pos_tx(2));
 annotStrings{end+1} = sprintf('Initial TX: (%.2f, %.2f)', pos_init(1), pos_init(2));
 annotStrings{end+1} = sprintf('Est  TX: (%.2f, %.2f)', pos_est(1), pos_est(2));
@@ -128,8 +132,6 @@ for i = 1:length(annotStrings)
 end
 
 %% Additional function to plot the 3D map
-
-
 progressbar('reset', 1); % Reset progress bar
 [X, Y, L] = l4c.calLikelihood4Area(area_size, pos_rx, rot_abs, y_centralised(1,:,:)', ELEMENT_NUM, nPower);
 progressbar('end');  % This will display the total runtime
