@@ -342,16 +342,19 @@ classdef Metric < handle
             addParameter(p, 'BinWidth', []);  % Auto-calculate bin width if not specified
             addParameter(p, 'CapInfo', []);
             addParameter(p, 'SNRValues', []);
-            addParameter(p, 'ShowKDE', true); % Show KDE curve by default
+            addParameter(p, 'ShowKDE', false); % Show KDE curve by default
+            addParameter(p, 'ShowGamma', true); % Show gamma distribution fit by default
             addParameter(p, 'CompareMethod', []);
             addParameter(p, 'CompareInSubplot', false); % Default to separate figure
             addParameter(p, 'ColorMap', 'parula');
             parse(p, varargin{:});
-            
+
             % Extract parameters
             cap_info = p.Results.CapInfo;
             snr_values = p.Results.SNRValues;
             show_kde = p.Results.ShowKDE;
+            show_gamma = p.Results.ShowGamma;
+            bin_width_list = p.Results.BinWidth;
             compare_method = p.Results.CompareMethod;
             compare_in_subplot = p.Results.CompareInSubplot;
             cmap = colormap(p.Results.ColorMap);
@@ -399,12 +402,11 @@ classdef Metric < handle
                 errors = all_errors{snr_idx, method_idx};
                 method_max_error = min(max(errors), 1.5*mean(errors(:)));
                 % Auto-calculate bin width if not specified
-                if isempty(p.Results.BinWidth)
+                if isempty(bin_width_list)
                     % Calculate method-specific bin width based on its error range
-                    method_bin_width = (method_max_error/30); % 30 bins for each method
-                    bin_width = method_bin_width;
+                    bin_width = (method_max_error/30); % 30 bins for each method
                 else
-                    bin_width = p.Results.BinWidth;
+                    bin_width = bin_width_list(method_idx);
                 end
                 % Calculate statistics
                 mean_error = mean(errors);
@@ -429,112 +431,109 @@ classdef Metric < handle
                 
                 hold on;
                 
-                % Add KDE curve if requested
-                % if show_kde
-                %     % Add a small epsilon to zero values
-                %     epsilon = 1e-10;
-                %     positive_errors = errors;
-                %     positive_errors(positive_errors == 0) = epsilon;
-                    
-                %     try
-                %         if ~isempty(positive_errors)
-                %             % Analyze distribution characteristics
-                %             error_skewness = skewness(positive_errors);
-                %             error_kurtosis = kurtosis(positive_errors);
-                %             cv = std(positive_errors) / mean(positive_errors); % coefficient of variation
-                            
-                %             % Select appropriate KDE method based on distribution characteristics
-                %             if cv > 1.2 || error_skewness > 2
-                %                 % Heavy-tailed or highly skewed data - use log-transform
-                %                 log_errors = log(positive_errors);
-                %                 [f_log, xi_log] = ksdensity(log_errors, 'Kernel', 'epanechnikov');
-                                
-                %                 % Transform back to original scale
-                %                 xi = exp(xi_log);
-                %                 f = f_log ./ xi; % Adjustment for variable transformation
-                %             elseif error_kurtosis > 3 && error_kurtosis <= 5
-                %                 % Moderately heavy-tailed - use Epanechnikov kernel with larger bandwidth
-                %                 bw = 1.2 * std(positive_errors) * length(positive_errors)^(-0.2);
-                %                 [f, xi] = ksdensity(positive_errors, 'Kernel', 'epanechnikov', 'Bandwidth', bw, 'Support', 'positive');
-                %             elseif length(positive_errors) < 100
-                %                 % Small sample size - use robust bandwidth
-                %                 bw = 1.06 * min(std(positive_errors), iqr(positive_errors)/1.34) * length(positive_errors)^(-0.2);
-                %                 [f, xi] = ksdensity(positive_errors, 'Bandwidth', bw, 'Support', 'positive');
-                %             else
-                %                 % Default case - adaptive bandwidth calculation manually
-                %                 bw_silverman = 0.9 * min(std(positive_errors), iqr(positive_errors)/1.34) * length(positive_errors)^(-0.2);
-                %                 [f, xi] = ksdensity(positive_errors, 'Bandwidth', bw_silverman, 'Support', 'positive');
-                %             end
-                            
-                %             % Scale the KDE curve to match histogram height
-                %             hist_counts = histcounts(positive_errors, 'Normalization', 'pdf');
-                %             if ~isempty(hist_counts)
-                %                 histMax = max(hist_counts);
-                %                 kdeMax = max(f);
-                %                 if kdeMax > 0
-                %                     scaling_factor = histMax / kdeMax;
-                %                     f = f * scaling_factor;
-                %                 end
-                %             end
-                            
-                %             % Fit theoretical distributions and find best match
-                %             [best_dist, best_params, gof] = obj.findBestDistribution(positive_errors);
-                            
-                %             % Plot KDE curve
-                %             plot(xi, f, 'LineWidth', 2, 'Color', method_color*0.7); hold on;
-                            
-                %             % Add distribution name to title or as text annotation
-                %             if exist('title_text', 'var')
-                %                 % Format parameters differently based on distribution type
-                %                 param_display = obj.formatDistParams(best_dist, best_params);
-                %                 title_text = sprintf('%s\nBest fit: %s %s (GoF: %.3f)', title_text, best_dist, param_display, gof);
-                %                 title(title_text);
-                %             else
-                %                 % Format parameters for annotation
-                %                 param_display = obj.formatDistParams(best_dist, best_params);
-                %                 text(0.5*max(xi), 0.7*max(f), sprintf('Best fit: %s %s\nGoF: %.3f', best_dist, param_display, gof), 'FontSize', 8);
-                                
-                %                 % Optionally plot the theoretical distribution
-                %                 x_range = linspace(0, max(xi), 200);
-                %                 if ~isempty(best_params) && ~strcmp(best_dist, 'unknown')
-                %                     y_theo = obj.distPDF(x_range, best_dist, best_params);
-                %                     % Scale theoretical PDF to match histogram height
-                %                     y_theo = y_theo * (max(f)/max(y_theo));
-                %                     plot(x_range, y_theo, '--', 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
-                %                 end
-                %             end
-                %             % Print distribution information to the terminal
-                %             method_name = '';
-                %             if exist('legend_names', 'var') && method_idx <= length(legend_names)
-                %                 method_name = legend_names{method_idx};
-                %             end
-
-                %             % Format and print the distribution info to terminal
-                %             param_display = obj.formatDistParams(best_dist, best_params);
-                %             fprintf('Method: %s, SNR Index: %d\n', method_name, snr_idx);
-                %             fprintf('  Best fit distribution: %s %s\n', best_dist, param_display);
-                %             fprintf('  Goodness of fit: %.3f\n', gof);
-                %             fprintf('  Distribution parameters: ');
-                %             disp(best_params);
-                %             fprintf('--------------------------\n');
-                %         end
-                %     catch e
-                %         warning(e.identifier, 'KDE calculation failed: %s', e.message);
-                %     end
-                % end
+                % Add a small epsilon to zero values (needed for both KDE and gamma)
+                epsilon = 1e-10;
+                positive_errors = errors;
+                positive_errors(positive_errors == 0) = epsilon;
                 
-                % Create detailed title with statistics
-                if ~isempty(cap_info)
-                cap_percentage = cap_info.percentage{method_idx};
-                title_text = sprintf('%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m, Capped: %.1f%%', ...
-                    legend_names{method_idx}, mean_error, std_error, median_error, rmse, iqr_value, cap_percentage);
-                else
-                title_text = sprintf('%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m', ...
-                    legend_names{method_idx}, mean_error, std_error, median_error, rmse, iqr_value);
+                % Variables to store gamma fit information
+                gamma_param_text = '';
+                gamma_stats_text = '';
+                
+                % Add KDE curve if requested
+                if show_kde
+                    try
+                        % Calculate KDE for visualization
+                        [f, xi] = ksdensity(positive_errors, 'Support', 'positive');
+                        
+                        % Plot KDE curve
+                        plot(xi, f, 'LineWidth', 2, 'Color', method_color*0.7);
+                    catch e
+                        warning(e.identifier, 'KDE calculation failed: %s', e.message);
+                    end
                 end
+                
+                % Add gamma distribution fit if requested
+                if show_gamma
+                    try
+                        if ~isempty(positive_errors)
+                            % If KDE was not calculated, do it now for scaling purposes
+                            if ~show_kde
+                                [f, xi] = ksdensity(positive_errors, 'Support', 'positive');
+                            end
+                            
+                            % Fit gamma distribution to the data
+                            % gamfit returns [shape(a), scale(b)] parameters
+                            [gamma_params, ~] = gamfit(positive_errors);
+                            shape_param = gamma_params(1); % a (shape parameter)
+                            scale_param = gamma_params(2); % b (scale parameter)
+                            
+                            % Calculate theoretical gamma PDF values for plotting
+                            x_range = linspace(0, max(xi), 200);
+                            gamma_pdf = gampdf(x_range, shape_param, scale_param);
+                            
+                            % Scale gamma PDF to match histogram height for better visualization
+                            scaling_factor = max(f)/max(gamma_pdf);
+                            gamma_pdf = gamma_pdf * scaling_factor;
+                            
+                            % Plot gamma distribution curve
+                            plot(x_range, gamma_pdf, '--', 'LineWidth', 2, 'Color', [0.2 0.2 0.2]);
+                            
+                            % Calculate goodness of fit using Kolmogorov-Smirnov test
+                            [~, p] = kstest(positive_errors, 'CDF', [positive_errors, gamcdf(positive_errors, shape_param, scale_param)]);
+                            
+                            % Add gamma distribution parameters to plot title
+                            mean_gamma = shape_param * scale_param;
+                            var_gamma = shape_param * scale_param^2;
+                            
+                            % Format text display for gamma parameters
+                            gamma_param_text = sprintf('Gamma(a=%.2f, b=%.2f)', shape_param, scale_param);
+                            gamma_stats_text = sprintf('E[X]=%.2f, Var=%.2f, p=%.3f', mean_gamma, var_gamma, p);
+                            
+                            % Print distribution information to the terminal
+                            method_name = '';
+                            if exist('legend_names', 'var') && method_idx <= length(legend_names)
+                                method_name = legend_names{method_idx};
+                            end
+                            
+                            % Format and print the distribution info to terminal
+                            fprintf('Method: %s, SNR Index: %d\n', method_name, snr_idx);
+                            fprintf('  Gamma fit: shape(a)=%.3f, scale(b)=%.3f\n', shape_param, scale_param);
+                            fprintf('  Goodness of fit (p-value): %.3f\n', p);
+                            fprintf('--------------------------\n');
+                        end
+                    catch e
+                        warning(e.identifier, 'Gamma fit calculation failed: %s', e.message);
+                    end
+                end
+                
+                % Determine format string and arguments list
+                basic_format = '%s\nMean: %.1f m, Std: %.1f m\nMedian: %.1f m, RMSE: %.1f m\nIQR: %.1f m';
+                basic_args = {legend_names{method_idx}, mean_error, std_error, median_error, rmse, iqr_value};
+                
+                cap_format = '';
+                cap_args = {};
+                if ~isempty(cap_info)
+                    cap_format = ', Capped: %.1f%%';
+                    cap_args = {cap_info.percentage{method_idx}};
+                end
+                
+                gamma_format = '';
+                gamma_args = {};
+                if show_gamma && ~isempty(gamma_param_text) && ~isempty(gamma_stats_text)
+                    gamma_format = '\n%s\n%s';
+                    gamma_args = {gamma_param_text, gamma_stats_text};
+                end
+                
+                % Combine all pieces in one operation
+                title_format = [basic_format, cap_format, gamma_format];
+                title_args = [basic_args, cap_args, gamma_args];
+                
+                % Create title text with a single sprintf call
+                title_text = sprintf(title_format, title_args{:});
                 title(title_text);
                 
-                % Labels
+                % Labels and formatting
                 xlabel('Position Error (m)');
                 ylabel('Probability Density');
                 grid on;
