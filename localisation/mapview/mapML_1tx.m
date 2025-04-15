@@ -38,8 +38,8 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-TX_RANDOMISED = false;              % Randomise TX positions
-RX_RANDOMISED = false;              % Randomise RX positions and AoA
+TX_RANDOMISED = true;              % Randomise TX positions
+RX_RANDOMISED = true;              % Randomise RX positions and AoA
 TX_NUM = 1;                         % Number of transmitters
 RX_NUM = 10;                         % Number of receivers
 ELEMENT_NUM = 4;                    % Number of ULA elements
@@ -52,7 +52,7 @@ OPT_GRID_DENSITY = 5;               % Define a coarse grid for initial guesses
 SAFETY_DISTANCE = 5;                % Minimum distance between TX and RX (meters)
 area_size = 100;
 %% Signal and channel configurations
-SNR_dB = 0 * ones(1, RX_NUM);       % SNR in dB
+SNR_dB = 20 * ones(1, RX_NUM);       % SNR in dB
 c = 299792458;                      % Speed of light (m/s)
 fc = 2.4e9;                         % Operating frequency (Hz)
 lambda = c / fc;                    % Wavelength

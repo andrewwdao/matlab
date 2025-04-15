@@ -2,7 +2,7 @@
 clear; clc; close all;
 
 %% User Inputs and Configurations
-RUN_MODE = 'test';                  % Options: 'test', 'plot' or 'save'
+RUN_MODE = 'save';                  % Options: 'test', 'plot' or 'save'
 METRIC_TO_PLOT = 'rmse';            % Options: 'rmse', 'p25', 'p50' (median), 'p75', 'band'
 BAND_PERCENTILES = [25, 50, 75];    % Percentiles for error band if METRIC_TO_PLOT is 'band'
 SHOW_ERROR_BAND = false;            % Whether to show the 25-75 percentile band
@@ -48,11 +48,11 @@ else
         ITERATION = 1;  % For quick testing
         SAVE_METRICS = false;
     else  % 'full' mode
-        ITERATION = 10000;  % For full simulation
+        ITERATION = 20000;  % For full simulation
         SAVE_METRICS = true;
     end
 
-    TX_RANDOMISED = true;              % Randomise TX positions
+    TX_RANDOMISED = false;              % Randomise TX positions
     RX_RANDOMISED = true;              % Randomise RX positions and AoA
     TX_NUM = 1;                         % Number of transmitters
     RX_NUM = 3:7:24;                 % Additional receiver counts for ML optimization
