@@ -400,13 +400,50 @@ classdef Metric < handle
             for method_idx = 1:num_methods
                 % Extract errors for current method at specified SNR
                 errors = all_errors{snr_idx, method_idx};
-                method_max_error = min(max(errors), 1.5*mean(errors(:)));
+
+                % Handle potential issues with error data
+                if isempty(errors) || all(~isfinite(errors))
+                    warning('Error data for method %d at SNR index %d contains all non-finite values.', method_idx, snr_idx);
+                    % Use placeholder data for visualization
+                    errors = [0, 1]; % Simple placeholder
+                    method_max_error = 1;
+                else
+                    % Remove any NaN or Inf values for calculations
+                    valid_errors = errors(isfinite(errors));
+                    if isempty(valid_errors)
+                        method_max_error = 1; % Default if all values are non-finite
+                    else
+                        max_err = max(valid_errors);
+                        mean_err = mean(valid_errors);
+                        method_max_error = min(max_err, 1.5*mean_err);
+                        
+                        % Ensure method_max_error is positive
+                        if method_max_error <= 0
+                            method_max_error = max(max_err, 1); % Use max error or 1 meter
+                        end
+                    end
+                end
+
                 % Auto-calculate bin width if not specified
                 if isempty(bin_width_list)
                     % Calculate method-specific bin width based on its error range
                     bin_width = (method_max_error/30); % 30 bins for each method
+                    
+                    % Ensure bin_width is finite and reasonable
+                    if ~isfinite(bin_width) || bin_width <= 0
+                        bin_width = method_max_error/10; % Try different divisor
+                        if ~isfinite(bin_width) || bin_width <= 0
+                            bin_width = 1.0; % Default to 1 meter bins if all else fails
+                            warning('Invalid bin width calculated. Using default of 1 meter.');
+                        end
+                    end
                 else
-                    bin_width = bin_width_list(method_idx);
+                    if method_idx <= length(bin_width_list)
+                        bin_width = bin_width_list(method_idx);
+                    else
+                        bin_width = 1.0; % Default if index is out of range
+                        warning('Bin width index out of range. Using default of 1 meter.');
+                    end
                 end
                 % Calculate statistics
                 mean_error = mean(errors);
@@ -562,14 +599,23 @@ classdef Metric < handle
         end
 
         % Function to find the best theoretical distribution
-        function [best_dist, best_params, best_gof] = findBestDistribution(~, data)
-            % List of distributions to try
-            dists = {'gamma', 'rayleigh', 'weibull', 'lognormal', 'exponential'};
+        function [dist_details, model_metrics] = findBestDistribution(~, data)
+            % Expanded list of distributions to try
+            dists = {'gamma', 'rayleigh', 'weibull', 'lognormal', 'exponential', ...
+                     'nakagami', 'rician', 'inverse gaussian', 'loglogistic'};
             
-            best_gof = Inf;
-            best_dist = '';
-            best_params = [];
+            % Initialize output structures
+            dist_details = struct('name', {}, 'params', {}, 'pd', {});
+            model_metrics = struct('aic', {}, 'bic', {}, 'p', {});
             
+            % Handle non-finite values
+            data = data(isfinite(data) & data > 0);  
+            if isempty(data)
+                warning('No valid data points for distribution fitting');
+                return;
+            end
+            
+            % Try fitting each distribution
             for i = 1:length(dists)
                 dist_name = dists{i};
                 try
@@ -579,35 +625,35 @@ classdef Metric < handle
                     % Calculate goodness of fit using Kolmogorov-Smirnov test
                     [~, p] = kstest(data, 'CDF', [data, cdf(pd, data)]);
                     
-                    % Alternative: use negative log-likelihood as goodness of fit
-                    % nll = negloglik(pd);
+                    % Calculate information criteria
+                    n = length(data);
+                    k = length(pd.Params);
+                    nll = pd.NLogL;
                     
-                    % Calculate AIC (Akaike Information Criterion)
-                    if p < 0.05
-                        % Poor fit, higher AIC penalty
-                        aic = pd.NLogL + 4*length(pd.Params);
-                    else
-                        % Good fit by KS test
-                        aic = pd.NLogL + 2*length(pd.Params);
-                    end
+                    % AIC and BIC
+                    aic = 2*k + 2*nll;
+                    bic = k*log(n) + 2*nll;
                     
-                    % If this distribution has better fit (smaller AIC)
-                    if aic < best_gof
-                        best_gof = aic;
-                        best_dist = dist_name;
-                        best_params = pd.Params;
-                    end
-                catch
-                    % Skip distributions that fail to fit
-                    continue;
+                    % Store distribution details
+                    dist_details(i).name = dist_name;
+                    dist_details(i).params = pd.Params;
+                    dist_details(i).pd = pd;
+                    
+                    % Store goodness-of-fit metrics
+                    model_metrics(i).aic = aic;
+                    model_metrics(i).bic = bic;
+                    model_metrics(i).p = p;
+                    
+                catch e
+                    % Skip distributions that fail to fit, but store placeholder data
+                    dist_details(i).name = dist_name;
+                    dist_details(i).params = [];
+                    dist_details(i).pd = [];
+                    
+                    model_metrics(i).aic = Inf;
+                    model_metrics(i).bic = Inf;
+                    model_metrics(i).p = 0;
                 end
-            end
-            
-            % If no distribution fit worked, return default
-            if isempty(best_dist)
-                best_dist = 'unknown';
-                best_params = [];
-                best_gof = Inf;
             end
         end
 

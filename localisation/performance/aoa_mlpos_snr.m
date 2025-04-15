@@ -10,7 +10,7 @@ CAP_ERROR = false;                  % Cap error values at the maximum theoretica
 INCLUDE_CAPPED = true;              % Include capped values in the output errors, only valid if CAP_ERROR is true
 COMPARE_EPDF_IN_SUBPLOT = false;    % Compare empirical PDFs in subplots
 PLOT_METRICS = true;                % Plot metrics after simulation
-PLOT_TIME_STATS = false;            % Plot time statistics after simulation
+PLOT_TIME_STATS = true;            % Plot time statistics after simulation
 PLOT_EPDF = true;                   % Plot empirical PDF of errors after simulation
 
 FLAG_PLOT = strcmp(RUN_MODE, 'test') || strcmp(RUN_MODE, 'plot'); % Flag for plotting
@@ -124,7 +124,7 @@ else
     progressbar('reset', ITERATION*nvar_snr+ ITERATION*nvar_rx*2*nvar_snr); % Reset progress bar
     %% Monte Carlo iterations
     % Preallocate error arrays for each method and SNR value
-    all_errors = arrayfun(@(~) zeros(ITERATION, 1), ones(nvar_snr, legend4metric_num), 'UniformOutput', false);
+    errors_all = arrayfun(@(~) zeros(ITERATION, 1), ones(nvar_snr, legend4metric_num), 'UniformOutput', false);
     for itr = 1:ITERATION
         % --- Generate receivers and the received signal for the maximum number of receivers
         [pos_rx, aoa_act, rot_abs] = map2d.genRXPos(area_size, pos_tx, max(RX_NUM), RX_RANDOMISED, SAFETY_DISTANCE, ABS_ANGLE_LIM, DOA_RESOLUTION);
@@ -141,8 +141,8 @@ else
                 y_received_active = y_centralised(idx_snr, 1:RX_NUM(idx_rx),:);
                 progressbar('step'); % Update progress bar
                 progressbar('starttimer', timer_centroid); % Time the algorithm
-                [~, all_errors{idx_snr, 0*nvar_rx+idx_rx}(itr), ...
-                 ~, all_errors{idx_snr, 1*nvar_rx+idx_rx}(itr), ~] = algo.MLOpt4mCentroid(...
+                [~, errors_all{idx_snr, 0*nvar_rx+idx_rx}(itr), ...
+                 ~, errors_all{idx_snr, 1*nvar_rx+idx_rx}(itr), ~] = algo.MLOpt4mCentroid(...
                     pos_rx_active, rot_abs, y_received_active, ...
                     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                     doa_estimator, pos_tx...
@@ -150,15 +150,15 @@ else
                 progressbar('stoptimer', timer_centroid);
                 progressbar('step'); % Update progress bar
                 progressbar('starttimer', timer_triage); % Time the algorithm
-                [~, all_errors{idx_snr, 2*nvar_rx+idx_rx}(itr), ...
-                 ~, all_errors{idx_snr, 3*nvar_rx+idx_rx}(itr), ~] = algo.MLOpt4mDoAtriage(...
+                [~, errors_all{idx_snr, 2*nvar_rx+idx_rx}(itr), ...
+                 ~, errors_all{idx_snr, 3*nvar_rx+idx_rx}(itr), ~] = algo.MLOpt4mDoAtriage(...
                     pos_rx_active, rot_abs, y_received_active, ...
                     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                     doa_estimator, pos_tx...
                 );
                 progressbar('stoptimer', timer_triage);
                 % progressbar('step'); % Update progress bar
-                % [~, all_errors{idx_snr, nvar_doa_est+2*nvar_rx+idx_rx}(itr), ~] = algo.MLOptwGrid(...
+                % [~, errors_all{idx_snr, nvar_doa_est+2*nvar_rx+idx_rx}(itr), ~] = algo.MLOptwGrid(...
                 %     pos_rx_active, rot_abs, y_received_active, ...
                 %     ELEMENT_NUM, nPower, [0, 0], [area_size, area_size],...
                 %     OPT_GRID_DENSITY, pos_tx...
@@ -194,8 +194,8 @@ if FLAG_PLOT
     capped_errors = [];
     if CAP_ERROR
         max_possible_error = sqrt(2) * area_size;
-        capped_errors = metric.capErrorValues(all_errors, max_possible_error, INCLUDE_CAPPED);
-        all_errors = capped_errors.values;
+        capped_errors = metric.capErrorValues(errors_all, max_possible_error, INCLUDE_CAPPED);
+        errors_all = capped_errors.values;
         % Display capped error values
         for idx = 1:legend4metric_num
             fprintf('Method %d (%s): %d/%d values capped (%.2f%%)\n', idx, legend4metric_name{idx}, ...
@@ -215,20 +215,20 @@ if FLAG_PLOT
     end
 
     % Initialize properly sized merged errors array
-    errors_merged = cell(size(all_errors, 1), total_cols);
+    errors_merged = cell(size(errors_all, 1), total_cols);
 
-    for idx_snr = 1:size(all_errors, 1)
+    for idx_snr = 1:size(errors_all, 1)
         merged_col = 1; % Track position in the new merged array
         
         for idx_method = 1:nvar_pos_est
             if method_pos_est(idx_method).merge_rx
                 % For methods to merge, average across all RX counts
-                merged_data = zeros(size(all_errors{1}));
+                merged_data = zeros(size(errors_all{1}));
                 
                 % Calculate average across all RX counts for this method
                 for idx_rx = 1:nvar_rx
                     orig_idx = (idx_method-1)*nvar_rx + idx_rx;
-                    merged_data = merged_data + all_errors{idx_snr, orig_idx};
+                    merged_data = merged_data + errors_all{idx_snr, orig_idx};
                 end
                 
                 % Store the merged data in the proper position
@@ -238,7 +238,7 @@ if FLAG_PLOT
                 % For other methods, keep separate entries for each RX count
                 for idx_rx = 1:nvar_rx
                     orig_idx = (idx_method-1)*nvar_rx + idx_rx;
-                    errors_merged{idx_snr, merged_col} = all_errors{idx_snr, orig_idx};
+                    errors_merged{idx_snr, merged_col} = errors_all{idx_snr, orig_idx};
                     merged_col = merged_col + 1;
                 end
             end
@@ -298,7 +298,7 @@ if FLAG_PLOT
         for idx_method = 1:nvar_pos_est
             if method_pos_est(idx_method).merge_rx
                 % For methods to merge, add a single legend entry
-                legend4metric_name{idx_legend} = [method_pos_est(idx_method).name, '(x4 itr)'];
+                legend4metric_name{idx_legend} = [method_pos_est(idx_method).name, '(x', num2str(nvar_rx), ' itr)'];
                 idx_legend = idx_legend + 1;
             else
                 % For other methods, keep separate entries for each RX count
